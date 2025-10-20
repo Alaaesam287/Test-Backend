@@ -4,7 +4,7 @@
 
 CREATE TABLE store_owner (
   store_owner_id  BIGSERIAL PRIMARY KEY,
-  name            VARCHAR(255),
+  name            VARCHAR(255) NOT NULL,
   email           VARCHAR(255) UNIQUE NOT NULL,
   password_hash   TEXT NOT NULL,
   created_at      TIMESTAMP DEFAULT NOW()
