@@ -60,6 +60,6 @@ func main() {
 		fmt.Fprintf(w, "Created store owner: %+v\n", owner)
 	})
 
-	log.Printf("🚀 Server running on port %s", cfg.AppPort)
+	log.Printf("Server running on port %s", cfg.AppPort)
 	log.Fatal(http.ListenAndServe(":"+cfg.AppPort, nil))
 }

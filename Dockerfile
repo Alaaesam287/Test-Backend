@@ -1,20 +1,15 @@
-# ---- Build stage ----
-FROM golang:1.22 AS builder
+# Use the official Go image for development
+FROM golang:1.22
+
+# Set the working directory inside the container
 WORKDIR /app
 
+# Copy dependency files first and download modules
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . .
-
-# ---- Dev stage (with Air for hot reload) ----
-FROM golang:1.22
-WORKDIR /app
-
-RUN go install github.com/cosmtrek/air@latest
-
-COPY --from=builder /app /app
-
+# Expose the app port (matches APP_PORT in .env)
 EXPOSE 8080
 
-CMD ["air", "cmd/main.go"]
+# Default command (overridden by docker-compose)
+CMD ["go", "run", "cmd/main.go"]
