@@ -15,8 +15,10 @@ CREATE TABLE store (
   store_owner_id  BIGINT UNIQUE NOT NULL REFERENCES store_owner(store_owner_id),
   name            VARCHAR(255) NOT NULL,
   domain          VARCHAR(255) UNIQUE,
-  created_at      TIMESTAMP DEFAULT NOW(),
-  updated_at      TIMESTAMP DEFAULT NOW()
+  currency        VARCHAR(10) DEFAULT 'USD',
+  timezone        VARCHAR(100) DEFAULT 'UTC',
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- ===============================
@@ -28,7 +30,8 @@ CREATE TABLE product_category (
   store_id        BIGINT NOT NULL REFERENCES store(store_id),
   name            VARCHAR(255) NOT NULL,
   parent_id       BIGINT REFERENCES product_category(category_id),
-  created_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP DEFAULT NOW(),
+  UNIQUE (store_id, name)
 );
 
 CREATE TABLE product (
@@ -36,21 +39,41 @@ CREATE TABLE product (
   store_id        BIGINT NOT NULL REFERENCES store(store_id),
   category_id     BIGINT REFERENCES product_category(category_id),
   name            VARCHAR(255) NOT NULL,
-  slug            VARCHAR(255) UNIQUE,
+  slug            VARCHAR(255),
   description     TEXT,
   brand           VARCHAR(255),
   created_at      TIMESTAMP DEFAULT NOW(),
   updated_at      TIMESTAMP DEFAULT NOW(),
-  is_active       BOOLEAN DEFAULT TRUE,
+  in_stock        BOOLEAN DEFAULT TRUE,
   deleted_at      TIMESTAMP NULL,
-  default_variant_id BIGINT NULL
+  default_variant_id BIGINT NOT NULL REFERENCES product_variant(variant_id),
+  CONSTRAINT unique_slug_per_store UNIQUE (store_id, slug)
 );
 
 CREATE TABLE product_image (
   image_id        BIGSERIAL PRIMARY KEY,
+  store_id        BIGINT NOT NULL REFERENCES store(store_id),
   product_id      BIGINT NOT NULL REFERENCES product(product_id),
   image_url       VARCHAR(500) NOT NULL,
   is_primary      BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE attribute_definition (
+  attribute_id    BIGSERIAL PRIMARY KEY,
+  store_id        BIGINT NOT NULL REFERENCES store(store_id),
+  name            VARCHAR(100) NOT NULL,
+  data_type       VARCHAR(50) NOT NULL CHECK (data_type IN ('string', 'integer', 'decimal', 'boolean')),
+  category_id     BIGINT REFERENCES product_category(category_id),
+  UNIQUE(store_id, name)
+);
+
+CREATE TABLE product_attribute_value (
+  product_id      BIGINT NOT NULL REFERENCES product(product_id),
+  attribute_id    BIGINT NOT NULL REFERENCES attribute_definition(attribute_id),
+  value_text      TEXT,
+  value_number    DECIMAL(15,4),
+  value_boolean   BOOLEAN,
+  PRIMARY KEY (product_id, attribute_id)
 );
 
 CREATE TABLE option_type (
@@ -68,36 +91,20 @@ CREATE TABLE option_value (
 CREATE TABLE product_variant (
   variant_id      BIGSERIAL PRIMARY KEY,
   product_id      BIGINT NOT NULL REFERENCES product(product_id),
-  sku             VARCHAR(100) UNIQUE,
+  sku             VARCHAR(100),
   price           DECIMAL(10,2),
   stock_quantity  INT DEFAULT 0,
   image_url       VARCHAR(500),
   created_at      TIMESTAMP DEFAULT NOW(),
   updated_at      TIMESTAMP DEFAULT NOW(),
-  deleted_at      TIMESTAMP NULL
+  deleted_at      TIMESTAMP NULL,
+  UNIQUE (store_id, sku)
 );
 
 CREATE TABLE variant_option (
   variant_id      BIGINT NOT NULL REFERENCES product_variant(variant_id),
   option_value_id BIGINT NOT NULL REFERENCES option_value(option_value_id),
   PRIMARY KEY (variant_id, option_value_id)
-);
-
-CREATE TABLE attribute_definition (
-  attribute_id    BIGSERIAL PRIMARY KEY,
-  store_id        BIGINT NOT NULL REFERENCES store(store_id),
-  name            VARCHAR(100) NOT NULL,
-  data_type       VARCHAR(50) NOT NULL CHECK (data_type IN ('string', 'integer', 'decimal', 'boolean')),
-  category_id     BIGINT REFERENCES product_category(category_id)
-);
-
-CREATE TABLE product_attribute_value (
-  product_id      BIGINT NOT NULL REFERENCES product(product_id),
-  attribute_id    BIGINT NOT NULL REFERENCES attribute_definition(attribute_id),
-  value_text      TEXT,
-  value_number    DECIMAL(15,4),
-  value_boolean   BOOLEAN,
-  PRIMARY KEY (product_id, attribute_id)
 );
 
 -- ===============================
@@ -110,6 +117,7 @@ CREATE TABLE customer (
   name            VARCHAR(255),
   email           VARCHAR(255),
   phone           VARCHAR(50),
+  address         JSONB,
   created_at      TIMESTAMP DEFAULT NOW(),
   UNIQUE (store_id, email)
 );
@@ -130,7 +138,7 @@ CREATE TABLE cart_item (
   cart_item_id    BIGSERIAL PRIMARY KEY,
   cart_id         BIGINT NOT NULL REFERENCES cart(cart_id),
   variant_id      BIGINT NOT NULL REFERENCES product_variant(variant_id),
-  quantity        INT NOT NULL,
+  quantity        INT NOT NULL CHECK (quantity > 0),
   unit_price      DECIMAL(10,2),
   created_at      TIMESTAMP DEFAULT NOW()
 );
@@ -149,7 +157,7 @@ CREATE TABLE order_item (
   order_item_id   BIGSERIAL PRIMARY KEY,
   order_id        BIGINT NOT NULL REFERENCES customer_order(order_id),
   variant_id      BIGINT REFERENCES product_variant(variant_id),
-  quantity        INT NOT NULL,
+  quantity        INT NOT NULL CHECK (quantity > 0),
   unit_price      DECIMAL(10,2),
   subtotal        DECIMAL(10,2)
 );
@@ -170,6 +178,6 @@ CREATE TABLE shipment (
   tracking_number VARCHAR(255),
   carrier         VARCHAR(255),
   shipped_at      TIMESTAMP,
-  delivered_at    TIMESTAMP,
+  delivered_at    TIMESTAMP CHECK (delivered_at >= shipped_at),
   status          VARCHAR(50) DEFAULT 'pending'
 );

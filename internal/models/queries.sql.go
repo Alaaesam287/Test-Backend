@@ -22,9 +22,18 @@ type CreateStoreParams struct {
 	Domain       sql.NullString
 }
 
-func (q *Queries) CreateStore(ctx context.Context, arg CreateStoreParams) (Store, error) {
+type CreateStoreRow struct {
+	StoreID      int64
+	StoreOwnerID int64
+	Name         string
+	Domain       sql.NullString
+	CreatedAt    sql.NullTime
+	UpdatedAt    sql.NullTime
+}
+
+func (q *Queries) CreateStore(ctx context.Context, arg CreateStoreParams) (CreateStoreRow, error) {
 	row := q.db.QueryRowContext(ctx, createStore, arg.StoreOwnerID, arg.Name, arg.Domain)
-	var i Store
+	var i CreateStoreRow
 	err := row.Scan(
 		&i.StoreID,
 		&i.StoreOwnerID,

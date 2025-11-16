@@ -6,6 +6,8 @@ package models
 
 import (
 	"database/sql"
+
+	"github.com/sqlc-dev/pqtype"
 )
 
 type AttributeDefinition struct {
@@ -39,6 +41,7 @@ type Customer struct {
 	Name       sql.NullString
 	Email      sql.NullString
 	Phone      sql.NullString
+	Address    pqtype.NullRawMessage
 	CreatedAt  sql.NullTime
 }
 
@@ -93,9 +96,9 @@ type Product struct {
 	Brand            sql.NullString
 	CreatedAt        sql.NullTime
 	UpdatedAt        sql.NullTime
-	IsActive         sql.NullBool
+	InStock          sql.NullBool
 	DeletedAt        sql.NullTime
-	DefaultVariantID sql.NullInt64
+	DefaultVariantID int64
 }
 
 type ProductAttributeValue struct {
@@ -116,6 +119,7 @@ type ProductCategory struct {
 
 type ProductImage struct {
 	ImageID   int64
+	StoreID   int64
 	ProductID int64
 	ImageUrl  string
 	IsPrimary sql.NullBool
@@ -148,6 +152,8 @@ type Store struct {
 	StoreOwnerID int64
 	Name         string
 	Domain       sql.NullString
+	Currency     sql.NullString
+	Timezone     sql.NullString
 	CreatedAt    sql.NullTime
 	UpdatedAt    sql.NullTime
 }
