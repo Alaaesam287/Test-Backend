@@ -7,119 +7,40 @@ package models
 
 import (
 	"context"
-	"database/sql"
 )
 
-const createStore = `-- name: CreateStore :one
-INSERT INTO store (store_owner_id, name, domain)
-VALUES ($1, $2, $3)
-RETURNING store_id, store_owner_id, name, domain, created_at, updated_at
+const listCategoriesByStore = `-- name: ListCategoriesByStore :many
+SELECT category_id, store_id, name, parent_id, created_at
+FROM product_category
+WHERE store_id = $1
+ORDER BY name
 `
 
-type CreateStoreParams struct {
-	StoreOwnerID int64
-	Name         string
-	Domain       sql.NullString
-}
-
-type CreateStoreRow struct {
-	StoreID      int64
-	StoreOwnerID int64
-	Name         string
-	Domain       sql.NullString
-	CreatedAt    sql.NullTime
-	UpdatedAt    sql.NullTime
-}
-
-func (q *Queries) CreateStore(ctx context.Context, arg CreateStoreParams) (CreateStoreRow, error) {
-	row := q.db.QueryRowContext(ctx, createStore, arg.StoreOwnerID, arg.Name, arg.Domain)
-	var i CreateStoreRow
-	err := row.Scan(
-		&i.StoreID,
-		&i.StoreOwnerID,
-		&i.Name,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const createStoreOwner = `-- name: CreateStoreOwner :one
-INSERT INTO store_owner (name, email, password_hash)
-VALUES ($1, $2, $3)
-RETURNING store_owner_id, name, email, password_hash, created_at
-`
-
-type CreateStoreOwnerParams struct {
-	Name         string
-	Email        string
-	PasswordHash string
-}
-
-func (q *Queries) CreateStoreOwner(ctx context.Context, arg CreateStoreOwnerParams) (StoreOwner, error) {
-	row := q.db.QueryRowContext(ctx, createStoreOwner, arg.Name, arg.Email, arg.PasswordHash)
-	var i StoreOwner
-	err := row.Scan(
-		&i.StoreOwnerID,
-		&i.Name,
-		&i.Email,
-		&i.PasswordHash,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getStoreOwnerByEmail = `-- name: GetStoreOwnerByEmail :one
-SELECT store_owner_id, name, email, password_hash, created_at
-FROM store_owner
-WHERE email = $1
-`
-
-func (q *Queries) GetStoreOwnerByEmail(ctx context.Context, email string) (StoreOwner, error) {
-	row := q.db.QueryRowContext(ctx, getStoreOwnerByEmail, email)
-	var i StoreOwner
-	err := row.Scan(
-		&i.StoreOwnerID,
-		&i.Name,
-		&i.Email,
-		&i.PasswordHash,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getStoreWithOwner = `-- name: GetStoreWithOwner :one
-SELECT s.store_id, s.name AS store_name, s.domain, s.created_at, s.updated_at,
-       o.store_owner_id, o.name AS owner_name, o.email AS owner_email
-FROM store s
-JOIN store_owner o ON s.store_owner_id = o.store_owner_id
-WHERE s.store_id = $1
-`
-
-type GetStoreWithOwnerRow struct {
-	StoreID      int64
-	StoreName    string
-	Domain       sql.NullString
-	CreatedAt    sql.NullTime
-	UpdatedAt    sql.NullTime
-	StoreOwnerID int64
-	OwnerName    string
-	OwnerEmail   string
-}
-
-func (q *Queries) GetStoreWithOwner(ctx context.Context, storeID int64) (GetStoreWithOwnerRow, error) {
-	row := q.db.QueryRowContext(ctx, getStoreWithOwner, storeID)
-	var i GetStoreWithOwnerRow
-	err := row.Scan(
-		&i.StoreID,
-		&i.StoreName,
-		&i.Domain,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.StoreOwnerID,
-		&i.OwnerName,
-		&i.OwnerEmail,
-	)
-	return i, err
+func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]ProductCategory, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoriesByStore, storeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProductCategory
+	for rows.Next() {
+		var i ProductCategory
+		if err := rows.Scan(
+			&i.CategoryID,
+			&i.StoreID,
+			&i.Name,
+			&i.ParentID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

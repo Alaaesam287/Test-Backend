@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"net/http"
 
 	_ "github.com/lib/pq" // register the postgres driver
 
 	"github.com/Secure-Website-Builder/Backend/internal/config"
+	"github.com/Secure-Website-Builder/Backend/internal/http/handlers"
+	"github.com/Secure-Website-Builder/Backend/internal/http/router"
 	"github.com/Secure-Website-Builder/Backend/internal/models"
+	"github.com/Secure-Website-Builder/Backend/internal/services/category"
 )
 
 func main() {
@@ -39,27 +41,10 @@ func main() {
 	// sqlc generated queries struct
 	queries := models.New(db)
 
-	http.HandleFunc("/owners", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "only POST allowed", http.StatusMethodNotAllowed)
-			return
-		}
+	categoryService := category.NewService(queries)
+	categoryHandler := handlers.NewCategoryHandler(categoryService)
+	
 
-		ctx := r.Context()
-
-		owner, err := queries.CreateStoreOwner(ctx, models.CreateStoreOwnerParams{
-			Name:         "Aboomar Store",
-			Email:        "aboomar@test.com",
-			PasswordHash: "hashed-password",
-		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(w, "Created store owner: %+v\n", owner)
-	})
-
-	log.Printf("Server running on port %s", cfg.AppPort)
-	log.Fatal(http.ListenAndServe(":"+cfg.AppPort, nil))
+	r := router.SetupRouter(categoryHandler)
+	r.Run(":8080")
 }
