@@ -37,7 +37,7 @@ CREATE TABLE product_category (
 CREATE TABLE product (
   product_id      BIGSERIAL PRIMARY KEY,
   store_id        BIGINT NOT NULL REFERENCES store(store_id),
-  category_id     BIGINT REFERENCES product_category(category_id),
+  category_id     BIGINT NOT NULL REFERENCES product_category(category_id),
   name            VARCHAR(255) NOT NULL,
   slug            VARCHAR(255),
   description     TEXT,
