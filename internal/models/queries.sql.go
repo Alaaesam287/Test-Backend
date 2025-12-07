@@ -7,7 +7,206 @@ package models
 
 import (
 	"context"
+	"database/sql"
 )
+
+const getProductAttributes = `-- name: GetProductAttributes :many
+SELECT
+  ad.attribute_id,
+  ad.name,
+  ad.data_type,
+  pav.value_text,
+  pav.value_number,
+  pav.value_boolean
+FROM product_attribute_value pav
+JOIN attribute_definition ad 
+  ON pav.attribute_id = ad.attribute_id
+WHERE pav.product_id = $1
+`
+
+type GetProductAttributesRow struct {
+	AttributeID  int64
+	Name         string
+	DataType     string
+	ValueText    sql.NullString
+	ValueNumber  sql.NullString
+	ValueBoolean sql.NullBool
+}
+
+func (q *Queries) GetProductAttributes(ctx context.Context, productID int64) ([]GetProductAttributesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProductAttributes, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProductAttributesRow
+	for rows.Next() {
+		var i GetProductAttributesRow
+		if err := rows.Scan(
+			&i.AttributeID,
+			&i.Name,
+			&i.DataType,
+			&i.ValueText,
+			&i.ValueNumber,
+			&i.ValueBoolean,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProductBase = `-- name: GetProductBase :one
+SELECT
+  p.product_id,
+  p.store_id,
+  p.name,
+  p.slug,
+  p.description,
+  p.brand,
+  p.category_id,
+  p.default_variant_id,
+  p.in_stock,
+  img.image_url AS primary_image
+FROM product p
+LEFT JOIN product_image img 
+  ON img.product_id = p.product_id AND img.is_primary = true
+WHERE p.store_id = $1 AND p.product_id = $2 AND p.deleted_at IS NULL
+`
+
+type GetProductBaseParams struct {
+	StoreID   int64
+	ProductID int64
+}
+
+type GetProductBaseRow struct {
+	ProductID        int64
+	StoreID          int64
+	Name             string
+	Slug             sql.NullString
+	Description      sql.NullString
+	Brand            sql.NullString
+	CategoryID       sql.NullInt64
+	DefaultVariantID sql.NullInt64
+	InStock          bool
+	PrimaryImage     sql.NullString
+}
+
+func (q *Queries) GetProductBase(ctx context.Context, arg GetProductBaseParams) (GetProductBaseRow, error) {
+	row := q.db.QueryRowContext(ctx, getProductBase, arg.StoreID, arg.ProductID)
+	var i GetProductBaseRow
+	err := row.Scan(
+		&i.ProductID,
+		&i.StoreID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Brand,
+		&i.CategoryID,
+		&i.DefaultVariantID,
+		&i.InStock,
+		&i.PrimaryImage,
+	)
+	return i, err
+}
+
+const getProductVariants = `-- name: GetProductVariants :many
+SELECT
+  variant_id,
+  product_id,
+  sku,
+  price,
+  stock_quantity,
+  image_url
+FROM product_variant
+WHERE product_id = $1 AND deleted_at IS NULL
+`
+
+type GetProductVariantsRow struct {
+	VariantID     int64
+	ProductID     int64
+	Sku           string
+	Price         string
+	StockQuantity int32
+	ImageUrl      string
+}
+
+func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]GetProductVariantsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProductVariants, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProductVariantsRow
+	for rows.Next() {
+		var i GetProductVariantsRow
+		if err := rows.Scan(
+			&i.VariantID,
+			&i.ProductID,
+			&i.Sku,
+			&i.Price,
+			&i.StockQuantity,
+			&i.ImageUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getVariantOptions = `-- name: GetVariantOptions :many
+SELECT
+  vo.variant_id,
+  ot.name AS option_type,
+  ov.value AS option_value
+FROM variant_option vo
+JOIN option_value ov ON vo.option_value_id = ov.option_value_id
+JOIN option_type ot ON ov.option_type_id = ot.option_type_id
+WHERE vo.variant_id = $1
+`
+
+type GetVariantOptionsRow struct {
+	VariantID   int64
+	OptionType  string
+	OptionValue string
+}
+
+func (q *Queries) GetVariantOptions(ctx context.Context, variantID int64) ([]GetVariantOptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getVariantOptions, variantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetVariantOptionsRow
+	for rows.Next() {
+		var i GetVariantOptionsRow
+		if err := rows.Scan(&i.VariantID, &i.OptionType, &i.OptionValue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const listCategoriesByStore = `-- name: ListCategoriesByStore :many
 SELECT category_id, store_id, name, parent_id, created_at

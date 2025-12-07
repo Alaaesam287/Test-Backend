@@ -12,6 +12,7 @@ import (
 	"github.com/Secure-Website-Builder/Backend/internal/http/router"
 	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/Secure-Website-Builder/Backend/internal/services/category"
+	"github.com/Secure-Website-Builder/Backend/internal/services/product"
 )
 
 func main() {
@@ -44,7 +45,9 @@ func main() {
 	categoryService := category.NewService(queries)
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
 	
+	productService := product.New(queries)
+	productHandler := handlers.NewProductHandler(productService)
 
-	r := router.SetupRouter(categoryHandler)
+	r := router.SetupRouter(categoryHandler,productHandler)
 	r.Run(":8080")
 }

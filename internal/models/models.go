@@ -96,9 +96,9 @@ type Product struct {
 	Brand            sql.NullString
 	CreatedAt        sql.NullTime
 	UpdatedAt        sql.NullTime
-	InStock          sql.NullBool
+	InStock          bool
 	DeletedAt        sql.NullTime
-	DefaultVariantID int64
+	DefaultVariantID sql.NullInt64
 }
 
 type ProductAttributeValue struct {
@@ -119,19 +119,18 @@ type ProductCategory struct {
 
 type ProductImage struct {
 	ImageID   int64
-	StoreID   int64
 	ProductID int64
 	ImageUrl  string
-	IsPrimary sql.NullBool
+	IsPrimary bool
 }
 
 type ProductVariant struct {
 	VariantID     int64
 	ProductID     int64
-	Sku           sql.NullString
-	Price         sql.NullString
-	StockQuantity sql.NullInt32
-	ImageUrl      sql.NullString
+	Sku           string
+	Price         string
+	StockQuantity int32
+	ImageUrl      string
 	CreatedAt     sql.NullTime
 	UpdatedAt     sql.NullTime
 	DeletedAt     sql.NullTime
