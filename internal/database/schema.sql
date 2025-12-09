@@ -7,7 +7,7 @@ CREATE TABLE store_owner (
   name            VARCHAR(255) NOT NULL,
   email           VARCHAR(255) UNIQUE NOT NULL,
   password_hash   TEXT NOT NULL,
-  created_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE store (
@@ -30,7 +30,7 @@ CREATE TABLE product_category (
   store_id        BIGINT NOT NULL REFERENCES store(store_id),
   name            VARCHAR(255) NOT NULL,
   parent_id       BIGINT REFERENCES product_category(category_id),
-  created_at      TIMESTAMP DEFAULT NOW(),
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE (store_id, name)
 );
 
@@ -42,10 +42,10 @@ CREATE TABLE product (
   slug            VARCHAR(255),
   description     TEXT,
   brand           VARCHAR(255),
-  created_at      TIMESTAMP DEFAULT NOW(),
-  updated_at      TIMESTAMP DEFAULT NOW(),
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   in_stock        BOOLEAN DEFAULT TRUE NOT NULL,
-  deleted_at      TIMESTAMP NULL,
+  deleted_at      TIMESTAMP WITH TIME ZONE NULL,
   default_variant_id BIGINT,
   CONSTRAINT unique_slug_per_store UNIQUE (store_id, slug)
 );
@@ -89,9 +89,9 @@ CREATE TABLE product_variant (
   price           DECIMAL(10,2) NOT NULL,
   stock_quantity  INT DEFAULT 0 NOT NULL,
   primary_image_url  VARCHAR(500) NOT NULL,
-  created_at      TIMESTAMP DEFAULT NOW(),
-  updated_at      TIMESTAMP DEFAULT NOW(),
-  deleted_at      TIMESTAMP NULL,
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at      TIMESTAMP WITH TIME ZONE NULL,
   UNIQUE (store_id, sku)
 );
 
@@ -99,7 +99,7 @@ CREATE TABLE product_variant_image (
   image_id        BIGSERIAL PRIMARY KEY,
   product_variant_id      BIGINT NOT NULL REFERENCES product_variant(variant_id) ON DELETE CASCADE,
   image_url       VARCHAR(500) NOT NULL,
-  created_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE variant_option (
@@ -124,7 +124,7 @@ CREATE TABLE customer (
   email           VARCHAR(255),
   phone           VARCHAR(50),
   address         JSONB,
-  created_at      TIMESTAMP DEFAULT NOW(),
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE (store_id, email)
 );
 
@@ -134,8 +134,8 @@ CREATE TABLE visitor_session (
   customer_id    BIGINT REFERENCES customer(customer_id), -- nullable for guests
   ip_address     INET,
   user_agent     TEXT,
-  first_seen_at  TIMESTAMP DEFAULT NOW(),
-  last_seen_at   TIMESTAMP DEFAULT NOW(),
+  first_seen_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_seen_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   is_returning   BOOLEAN DEFAULT FALSE
 );
 
@@ -147,8 +147,8 @@ CREATE TABLE cart (
   cart_id         BIGSERIAL PRIMARY KEY,
   customer_id     BIGINT REFERENCES customer(customer_id),
   store_id        BIGINT NOT NULL REFERENCES store(store_id),
-  created_at      TIMESTAMP DEFAULT NOW(),
-  updated_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE cart_item (
@@ -157,7 +157,7 @@ CREATE TABLE cart_item (
   variant_id      BIGINT NOT NULL REFERENCES product_variant(variant_id),
   quantity        INT NOT NULL CHECK (quantity > 0),
   unit_price      DECIMAL(10,2),
-  created_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE customer_order (
@@ -167,8 +167,8 @@ CREATE TABLE customer_order (
   session_id      UUID NOT NULL REFERENCES visitor_session(session_id),
   total_amount    DECIMAL(10,2),
   status          VARCHAR(50) DEFAULT 'pending',
-  created_at      TIMESTAMP DEFAULT NOW(),
-  updated_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE order_item (
@@ -187,7 +187,7 @@ CREATE TABLE payment (
   amount          DECIMAL(10,2),
   status          VARCHAR(50) DEFAULT 'pending',
   transaction_ref VARCHAR(255),
-  created_at      TIMESTAMP DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE shipment (
@@ -195,8 +195,8 @@ CREATE TABLE shipment (
   order_id        BIGINT NOT NULL REFERENCES customer_order(order_id),
   tracking_number VARCHAR(255),
   carrier         VARCHAR(255),
-  shipped_at      TIMESTAMP,
-  delivered_at    TIMESTAMP CHECK (delivered_at >= shipped_at),
+  shipped_at      TIMESTAMP WITH TIME ZONE,
+  delivered_at    TIMESTAMP WITH TIME ZONE CHECK (delivered_at >= shipped_at),
   status          VARCHAR(50) DEFAULT 'pending'
 );
 
@@ -205,7 +205,7 @@ CREATE TABLE product_view (
   product_id      BIGINT NOT NULL REFERENCES product(product_id),
   store_id        BIGINT NOT NULL REFERENCES store(store_id),
   session_id      UUID NOT NULL REFERENCES visitor_session(session_id),
-  viewed_at       TIMESTAMP DEFAULT NOW()
+  viewed_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE cart_event (
@@ -214,5 +214,5 @@ CREATE TABLE cart_event (
   product_id    BIGINT NOT NULL REFERENCES product(product_id),
   variant_id    BIGINT REFERENCES product_variant(variant_id),
   event_type    VARCHAR(20) CHECK (event_type IN ('add', 'remove')),
-  created_at    TIMESTAMP DEFAULT NOW()
+  created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
