@@ -46,7 +46,7 @@ CREATE TABLE product (
   updated_at      TIMESTAMP DEFAULT NOW(),
   in_stock        BOOLEAN DEFAULT TRUE NOT NULL,
   deleted_at      TIMESTAMP NULL,
-  default_variant_id BIGINT REFERENCES product_variant(variant_id),
+  default_variant_id BIGINT,
   CONSTRAINT unique_slug_per_store UNIQUE (store_id, slug)
 );
 
@@ -108,6 +108,11 @@ CREATE TABLE variant_option (
   PRIMARY KEY (variant_id, option_value_id)
 );
 
+ALTER TABLE product
+ADD CONSTRAINT fk_product_default_variant
+FOREIGN KEY (default_variant_id)
+REFERENCES product_variant(variant_id);
+
 -- ===============================
 -- CUSTOMERS
 -- ===============================
@@ -121,6 +126,17 @@ CREATE TABLE customer (
   address         JSONB,
   created_at      TIMESTAMP DEFAULT NOW(),
   UNIQUE (store_id, email)
+);
+
+CREATE TABLE visitor_session (
+  session_id     UUID PRIMARY KEY,
+  store_id       BIGINT NOT NULL REFERENCES store(store_id),
+  customer_id    BIGINT REFERENCES customer(customer_id), -- nullable for guests
+  ip_address     INET,
+  user_agent     TEXT,
+  first_seen_at  TIMESTAMP DEFAULT NOW(),
+  last_seen_at   TIMESTAMP DEFAULT NOW(),
+  is_returning   BOOLEAN DEFAULT FALSE
 );
 
 -- ===============================
@@ -184,17 +200,6 @@ CREATE TABLE shipment (
   status          VARCHAR(50) DEFAULT 'pending'
 );
 
-CREATE TABLE visitor_session (
-  session_id     UUID PRIMARY KEY,
-  store_id       BIGINT NOT NULL REFERENCES store(store_id),
-  customer_id    BIGINT REFERENCES customer(customer_id), -- nullable for guests
-  ip_address     INET,
-  user_agent     TEXT,
-  first_seen_at  TIMESTAMP DEFAULT NOW(),
-  last_seen_at   TIMESTAMP DEFAULT NOW(),
-  is_returning   BOOLEAN DEFAULT FALSE
-);
-
 CREATE TABLE product_view (
   product_view_id BIGSERIAL PRIMARY KEY,
   product_id      BIGINT NOT NULL REFERENCES product(product_id),
@@ -211,4 +216,3 @@ CREATE TABLE cart_event (
   event_type    VARCHAR(20) CHECK (event_type IN ('add', 'remove')),
   created_at    TIMESTAMP DEFAULT NOW()
 );
-
