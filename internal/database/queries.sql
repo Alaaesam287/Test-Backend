@@ -14,11 +14,12 @@ SELECT
   p.brand,
   p.category_id,
   p.default_variant_id,
+  v.price,
   p.in_stock,
-  img.image_url AS primary_image
+  v.primary_image_url AS primary_image
 FROM product p
-LEFT JOIN product_image img 
-  ON img.product_id = p.product_id AND img.is_primary = true
+JOIN product_variant v 
+  ON v.variant_id = p.default_variant_id
 WHERE p.store_id = $1 AND p.product_id = $2 AND p.deleted_at IS NULL;
 
 
@@ -43,7 +44,7 @@ SELECT
   sku,
   price,
   stock_quantity,
-  image_url
+  primary_image_url
 FROM product_variant
 WHERE product_id = $1 AND deleted_at IS NULL;
 
@@ -68,11 +69,10 @@ SELECT
   p.brand,
   p.category_id,
   p.default_variant_id,
+  v.price,
   p.in_stock,
-  img.image_url AS primary_image
+  v.primary_image_url AS primary_image
 FROM product p
-LEFT JOIN product_image img 
-  ON img.product_id = p.product_id AND img.is_primary = true
 JOIN product_variant v 
   ON v.variant_id = p.default_variant_id
 WHERE 
