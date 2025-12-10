@@ -128,23 +128,24 @@ type ProductCategory struct {
 	CreatedAt  sql.NullTime
 }
 
-type ProductImage struct {
-	ImageID   int64
-	ProductID int64
-	ImageUrl  string
-	IsPrimary bool
+type ProductVariant struct {
+	VariantID       int64
+	ProductID       int64
+	StoreID         int64
+	Sku             string
+	Price           string
+	StockQuantity   int32
+	PrimaryImageUrl string
+	CreatedAt       sql.NullTime
+	UpdatedAt       sql.NullTime
+	DeletedAt       sql.NullTime
 }
 
-type ProductVariant struct {
-	VariantID     int64
-	ProductID     int64
-	Sku           string
-	Price         string
-	StockQuantity int32
-	ImageUrl      string
-	CreatedAt     sql.NullTime
-	UpdatedAt     sql.NullTime
-	DeletedAt     sql.NullTime
+type ProductVariantImage struct {
+	ImageID          int64
+	ProductVariantID int64
+	ImageUrl         string
+	CreatedAt        sql.NullTime
 }
 
 type ProductView struct {

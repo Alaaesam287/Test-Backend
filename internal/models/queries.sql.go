@@ -73,11 +73,12 @@ SELECT
   p.brand,
   p.category_id,
   p.default_variant_id,
+  v.price,
   p.in_stock,
-  img.image_url AS primary_image
+  v.primary_image_url AS primary_image
 FROM product p
-LEFT JOIN product_image img 
-  ON img.product_id = p.product_id AND img.is_primary = true
+JOIN product_variant v 
+  ON v.variant_id = p.default_variant_id
 WHERE p.store_id = $1 AND p.product_id = $2 AND p.deleted_at IS NULL
 `
 
@@ -95,8 +96,9 @@ type GetProductBaseRow struct {
 	Brand            sql.NullString
 	CategoryID       int64
 	DefaultVariantID sql.NullInt64
+	Price            string
 	InStock          bool
-	PrimaryImage     sql.NullString
+	PrimaryImage     string
 }
 
 func (q *Queries) GetProductBase(ctx context.Context, arg GetProductBaseParams) (GetProductBaseRow, error) {
@@ -111,6 +113,7 @@ func (q *Queries) GetProductBase(ctx context.Context, arg GetProductBaseParams) 
 		&i.Brand,
 		&i.CategoryID,
 		&i.DefaultVariantID,
+		&i.Price,
 		&i.InStock,
 		&i.PrimaryImage,
 	)
@@ -124,18 +127,18 @@ SELECT
   sku,
   price,
   stock_quantity,
-  image_url
+  primary_image_url
 FROM product_variant
 WHERE product_id = $1 AND deleted_at IS NULL
 `
 
 type GetProductVariantsRow struct {
-	VariantID     int64
-	ProductID     int64
-	Sku           string
-	Price         string
-	StockQuantity int32
-	ImageUrl      string
+	VariantID       int64
+	ProductID       int64
+	Sku             string
+	Price           string
+	StockQuantity   int32
+	PrimaryImageUrl string
 }
 
 func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]GetProductVariantsRow, error) {
@@ -153,7 +156,7 @@ func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]Ge
 			&i.Sku,
 			&i.Price,
 			&i.StockQuantity,
-			&i.ImageUrl,
+			&i.PrimaryImageUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -178,11 +181,10 @@ SELECT
   p.brand,
   p.category_id,
   p.default_variant_id,
+  v.price,
   p.in_stock,
-  img.image_url AS primary_image
+  v.primary_image_url AS primary_image
 FROM product p
-LEFT JOIN product_image img 
-  ON img.product_id = p.product_id AND img.is_primary = true
 JOIN product_variant v 
   ON v.variant_id = p.default_variant_id
 WHERE 
@@ -209,8 +211,9 @@ type GetTopProductsByCategoryRow struct {
 	Brand            sql.NullString
 	CategoryID       int64
 	DefaultVariantID sql.NullInt64
+	Price            string
 	InStock          bool
-	PrimaryImage     sql.NullString
+	PrimaryImage     string
 }
 
 func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProductsByCategoryParams) ([]GetTopProductsByCategoryRow, error) {
@@ -231,6 +234,7 @@ func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProduc
 			&i.Brand,
 			&i.CategoryID,
 			&i.DefaultVariantID,
+			&i.Price,
 			&i.InStock,
 			&i.PrimaryImage,
 		); err != nil {
