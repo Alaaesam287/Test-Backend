@@ -14,10 +14,7 @@ const getProductAttributes = `-- name: GetProductAttributes :many
 SELECT
   ad.attribute_id,
   ad.name,
-  ad.data_type,
-  pav.value_text,
-  pav.value_number,
-  pav.value_boolean
+  pav.value
 FROM product_attribute_value pav
 JOIN attribute_definition ad 
   ON pav.attribute_id = ad.attribute_id
@@ -25,12 +22,9 @@ WHERE pav.product_id = $1
 `
 
 type GetProductAttributesRow struct {
-	AttributeID  int64
-	Name         string
-	DataType     string
-	ValueText    sql.NullString
-	ValueNumber  sql.NullString
-	ValueBoolean sql.NullBool
+	AttributeID int64
+	Name        string
+	Value       string
 }
 
 func (q *Queries) GetProductAttributes(ctx context.Context, productID int64) ([]GetProductAttributesRow, error) {
@@ -42,14 +36,7 @@ func (q *Queries) GetProductAttributes(ctx context.Context, productID int64) ([]
 	var items []GetProductAttributesRow
 	for rows.Next() {
 		var i GetProductAttributesRow
-		if err := rows.Scan(
-			&i.AttributeID,
-			&i.Name,
-			&i.DataType,
-			&i.ValueText,
-			&i.ValueNumber,
-			&i.ValueBoolean,
-		); err != nil {
+		if err := rows.Scan(&i.AttributeID, &i.Name, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -325,4 +312,23 @@ func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]P
 		return nil, err
 	}
 	return items, nil
+}
+
+const resolveAttributeIDByName = `-- name: ResolveAttributeIDByName :one
+SELECT attribute_id
+FROM attribute_definition
+WHERE store_id = $1 AND name = $2
+LIMIT 1
+`
+
+type ResolveAttributeIDByNameParams struct {
+	StoreID int64
+	Name    string
+}
+
+func (q *Queries) ResolveAttributeIDByName(ctx context.Context, arg ResolveAttributeIDByNameParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, resolveAttributeIDByName, arg.StoreID, arg.Name)
+	var attribute_id int64
+	err := row.Scan(&attribute_id)
+	return attribute_id, err
 }
