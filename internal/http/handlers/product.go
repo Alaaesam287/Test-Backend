@@ -48,6 +48,7 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 	// pagination
 	page := 1
 	limit := 20
+
 	if p := c.DefaultQuery("page", "1"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
@@ -62,32 +63,34 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 	// category
 	var categoryID int64
 	if v := c.Query("category"); v != "" {
-		if id, err := strconv.ParseInt(v, 10, 64); err == nil {
-			categoryID = id
-		} else {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category"})
 			return
 		}
+		categoryID = id
 	}
 
 	// price filters
 	var minPricePtr *float64
 	var maxPricePtr *float64
+
 	if v := c.Query("min-price"); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			minPricePtr = &f
-		} else {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid min-price"})
 			return
 		}
+		minPricePtr = &f
 	}
+
 	if v := c.Query("max-price"); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			maxPricePtr = &f
-		} else {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid max-price"})
 			return
 		}
+		maxPricePtr = &f
 	}
 
 	// brand
@@ -106,33 +109,36 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		"brand":     true,
 	}
 
-	// parse attribute filters (any non-reserved param treated as attribute name)
-	attrFilters := make([]database.AttributeFilter, 0)
+	// ---------------------------------------
+	// Attribute filters (grouped for IN logic)
+	// ---------------------------------------
+	attrMap := make(map[int64][]string)
 	q := c.Request.URL.Query()
+
 	for key, values := range q {
 		if reserved[key] {
 			continue
 		}
-		// resolve attribute name -> id using service which uses sqlc generated function
+
 		attrID, err := h.Service.ResolveAttributeNameToID(ctx, storeID, key)
 		if err != nil {
-			// attribute not found: skip (or decide to return error)
+			// unknown attribute name -> skip
 			continue
 		}
-		// if multiple values for same param, treat them as OR for that attribute.
-		// For OR behavior (color=red&color=blue) we generate a single join with multiple values using IN.
-		// But current BuildAttributeFilterSQL expects single value per join. We will transform multi-values into multiple filters where semantics are:
-		// If client passed color=red&color=blue, they typically want products that have color in {red,blue}
-		// To support IN semantics, we add one filter per value but note: multi-value will act as AND (impossible)
-		// So for correct multi-value support you'd need a different builder (IN). For now we treat each value as separate filter.
-		for _, v := range values {
-			attrFilters = append(attrFilters, database.AttributeFilter{
-				AttributeID: attrID,
-				Value:       v,
-			})
-		}
+
+		// append all values for this attribute
+		attrMap[attrID] = append(attrMap[attrID], values...)
 	}
 
+	attrFilters := make([]database.AttributeFilter, 0, len(attrMap))
+	for attrID, vals := range attrMap {
+		attrFilters = append(attrFilters, database.AttributeFilter{
+			AttributeID: attrID,
+			Values:      vals,
+		})
+	}
+
+	// build final filters object
 	filters := product.ListProductFilters{
 		Page:       page,
 		Limit:      limit,
@@ -145,12 +151,18 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 
 	results, err := h.Service.ListProducts(ctx, storeID, filters)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load products", "detail": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "failed to load products",
+			"detail": err.Error(),
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": results,
-		"meta": gin.H{"page": page, "limit": limit},
+		"meta": gin.H{
+			"page":  page,
+			"limit": limit,
+		},
 	})
 }
