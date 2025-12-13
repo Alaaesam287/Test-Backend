@@ -15,7 +15,6 @@ type AttributeDefinition struct {
 	AttributeID int64
 	StoreID     int64
 	Name        string
-	DataType    string
 	CategoryID  sql.NullInt64
 }
 
@@ -113,11 +112,9 @@ type Product struct {
 }
 
 type ProductAttributeValue struct {
-	ProductID    int64
-	AttributeID  int64
-	ValueText    sql.NullString
-	ValueNumber  sql.NullString
-	ValueBoolean sql.NullBool
+	ProductID   int64
+	AttributeID int64
+	Value       string
 }
 
 type ProductCategory struct {
