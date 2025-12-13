@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
-	_ "github.com/lib/pq" // register the postgres driver
+	_ "github.com/lib/pq"
 
 	"github.com/Secure-Website-Builder/Backend/internal/config"
 	"github.com/Secure-Website-Builder/Backend/internal/http/handlers"
@@ -39,16 +40,24 @@ func main() {
 		log.Fatalf("failed to ping database: %v", err)
 	}
 
-	// sqlc generated queries struct
+	// sqlc generated queries
 	queries := models.New(db)
 
+	// services
 	categoryService := category.NewService(queries)
+	productService := product.New(queries, db)
+
+	// handlers
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
-	
-	productService := product.New(queries)
 	productHandler := handlers.NewProductHandler(productService)
 	categoryProductHandler := handlers.NewCategoryProductHandler(productService)
 
-	r := router.SetupRouter(categoryHandler,productHandler,categoryProductHandler)
-	r.Run(":8080")
+	// router
+	r := router.SetupRouter(categoryHandler, productHandler, categoryProductHandler)
+
+	port := os.Getenv("APP_PORT")
+	if port == "" {
+		port = "8080"
+	}
+	r.Run(":" + port)
 }

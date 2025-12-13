@@ -11,6 +11,7 @@ func SetupRouter(categoryHandler *handlers.CategoryHandler, productHandler *hand
 	stores := r.Group("/stores/:store_id")
 	{
 		stores.GET("/categories", categoryHandler.ListCategories)
+		stores.GET("/products", productHandler.ListProducts)
 	}
 
 	productGroup := r.Group("/stores/:store_id/products")
