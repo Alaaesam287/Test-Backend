@@ -85,3 +85,9 @@ SELECT attribute_id
 FROM attribute_definition
 WHERE store_id = $1 AND name = $2
 LIMIT 1;
+
+-- name: ResolveCategoryIDByName :one
+SELECT category_id
+FROM product_category
+WHERE store_id = $1 AND name = $2
+LIMIT 1;

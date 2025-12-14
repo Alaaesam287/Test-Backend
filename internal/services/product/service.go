@@ -120,6 +120,16 @@ func (s *Service) ResolveAttributeNameToID(ctx context.Context, storeID int64, n
 	return id, nil
 }
 
+// ResolveCategoryNameToID uses sqlc generated query: ResolveCategoryIDByName
+// This wraps the generated method for convenience if needed.
+func (s *Service) ResolveCategoryNameToID(ctx context.Context, storeID int64, name string) (int64, error) {
+	id, err := s.q.ResolveCategoryIDByName(ctx, models.ResolveCategoryIDByNameParams{StoreID: storeID, Name: name})
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
 // ListProducts builds SQL from template + dynamic joins and executes it.
 func (s *Service) ListProducts(ctx context.Context, storeID int64, f ListProductFilters) ([]models.ProductDTO, error) {
 	// Load template

@@ -332,3 +332,22 @@ func (q *Queries) ResolveAttributeIDByName(ctx context.Context, arg ResolveAttri
 	err := row.Scan(&attribute_id)
 	return attribute_id, err
 }
+
+const resolveCategoryIDByName = `-- name: ResolveCategoryIDByName :one
+SELECT category_id
+FROM product_category
+WHERE store_id = $1 AND name = $2
+LIMIT 1
+`
+
+type ResolveCategoryIDByNameParams struct {
+	StoreID int64
+	Name    string
+}
+
+func (q *Queries) ResolveCategoryIDByName(ctx context.Context, arg ResolveCategoryIDByNameParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, resolveCategoryIDByName, arg.StoreID, arg.Name)
+	var category_id int64
+	err := row.Scan(&category_id)
+	return category_id, err
+}
