@@ -66,16 +66,18 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		categoryPtr = &v
 	}
 	
+	var categoryID *int64
 	if categoryPtr == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category"})
-		return
+		categoryID = nil
+	}else {
+		id, err := h.Service.ResolveCategoryNameToID(ctx, storeID, *categoryPtr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category"})
+			return
+		}
+		categoryID = &id
 	}
 
-	categoryID, err := h.Service.ResolveCategoryNameToID(ctx, storeID, *categoryPtr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category"})
-		return
-	}
 	// price filters
 	var minPricePtr *float64
 	var maxPricePtr *float64

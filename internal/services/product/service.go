@@ -91,7 +91,7 @@ func (s *Service) GetFullProduct(ctx context.Context, storeID, productID int64) 
 type ListProductFilters struct {
 	Page       int
 	Limit      int
-	CategoryID int64
+	CategoryID *int64
 	MinPrice   *float64
 	MaxPrice   *float64
 	Brand      *string
@@ -147,52 +147,18 @@ func (s *Service) ListProducts(ctx context.Context, storeID int64, f ListProduct
 	}
 	offset := (f.Page - 1) * f.Limit
 
-	// base args: $1=store_id, $2=limit, $3=offset
-	args := []interface{}{storeID, f.Limit, offset}
-	paramIndex := 4 // next placeholder index
+	args := []interface{}{storeID, f.Limit, offset, f.CategoryID, f.Brand, f.MinPrice, f.MaxPrice}
+	paramIndex := 8 // next placeholder index
 
-	// 1) attribute joins
+	// attribute joins
 	joinSQL, joinArgs := database.BuildAttributeFilterSQL(f.Attributes, paramIndex)
 	if len(joinArgs) > 0 {
 		args = append(args, joinArgs...)
 		paramIndex += len(joinArgs)
 	}
 
-	// 2) price filter
-	priceSQL, priceArgs := database.BuildPriceFilterSQL(f.MinPrice, f.MaxPrice, paramIndex)
-	if len(priceArgs) > 0 {
-		args = append(args, priceArgs...)
-		paramIndex += len(priceArgs)
-	}
-
-	// 3) brand filter
-	brandSQL, brandArgs := database.BuildBrandFilterSQL(f.Brand, paramIndex)
-	if len(brandArgs) > 0 {
-		args = append(args, brandArgs...)
-		paramIndex += len(brandArgs)
-	}
-
-	// 4) category filter
-	catSQL, catArgs := database.BuildCategoryFilterSQL(f.CategoryID, paramIndex)
-	if len(catArgs) > 0 {
-		args = append(args, catArgs...)
-		paramIndex += len(catArgs)
-	}
-
 	// assemble SQL
 	sqlFinal := strings.Replace(tpl, "/*{{DYNAMIC_JOINS}}*/", joinSQL, 1)
-
-	whereFrag := ""
-	if priceSQL != "" {
-		whereFrag += priceSQL
-	}
-	if brandSQL != "" {
-		whereFrag += brandSQL
-	}
-	if catSQL != "" {
-		whereFrag += catSQL
-	}
-	sqlFinal = strings.Replace(sqlFinal, "/*{{DYNAMIC_WHERE}}*/", whereFrag, 1)
 
 	// Debugging
 	// fmt.Println("SQL:", sqlFinal)

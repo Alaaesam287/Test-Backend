@@ -15,8 +15,9 @@ JOIN product_variant pv
 
 WHERE p.store_id = $1
   AND p.deleted_at IS NULL
-
-/*{{DYNAMIC_WHERE}}*/
-
-ORDER BY p.product_id DESC
+  AND ($4::BIGINT IS NULL OR p.category_id = $4)
+  AND ($5::TEXT IS NULL OR p.brand = $5)
+  AND ($6::DECIMAL IS NULL OR v.price >= $6)
+  AND ($7::DECIMAL IS NULL OR v.price <= $7)
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3;
