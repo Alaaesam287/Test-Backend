@@ -1,39 +1,62 @@
-name: Run Gosec
+name: Go Security Scans
+
+permissions:
+  contents: read
+  security-events: write
+
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+
 jobs:
-  tests:
+  security:
     runs-on: ubuntu-latest
-    env:
-      GO111MODULE: on
+
     steps:
+      # 1️⃣ Checkout source code
       - name: Checkout Source
-        uses: actions/checkout@v3
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Go
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          args: ./...
-          
+          go-version: '1.22'
+          cache: true
+
+      # 3️⃣ Download dependencies
       - name: Download dependencies
         run: go mod download
 
+      # 4️⃣ Run Gosec (SAST)
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@v2.19.0
+        with:
+          args: >
+            -severity high
+            -confidence medium
+            -exclude-dir=internal/models
+            ./...
+
+      # 5️⃣ Initialize CodeQL
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: go
-          queries: security-and-quality   # Includes extra high-quality rules
+          queries: security-and-quality
 
+      # 6️⃣ Autobuild (required for Go CodeQL)
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      # 7️⃣ Perform CodeQL Analysis
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
-
+      # 8️⃣ Check Go dependencies for known vulns (SCA)
       - name: Check for Go vulnerabilities
-        uses: golang/govulncheck-action@v1 # The official GitHub Action
+        uses: golang/govulncheck-action@v1
         with:
-          # Optional: can specify different paths or formats
           packages: ./...
