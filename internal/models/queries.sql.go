@@ -102,46 +102,6 @@ func (q *Queries) GetCartItems(ctx context.Context, cartID int64) ([]GetCartItem
 	return items, nil
 }
 
-const getProductAttributes = `-- name: GetProductAttributes :many
-SELECT
-  ad.attribute_id,
-  ad.name,
-  pav.value
-FROM product_attribute_value pav
-JOIN attribute_definition ad 
-  ON pav.attribute_id = ad.attribute_id
-WHERE pav.product_id = $1
-`
-
-type GetProductAttributesRow struct {
-	AttributeID int64
-	Name        string
-	Value       string
-}
-
-func (q *Queries) GetProductAttributes(ctx context.Context, productID int64) ([]GetProductAttributesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getProductAttributes, productID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetProductAttributesRow
-	for rows.Next() {
-		var i GetProductAttributesRow
-		if err := rows.Scan(&i.AttributeID, &i.Name, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProductBase = `-- name: GetProductBase :one
 SELECT
   p.product_id,
@@ -150,7 +110,9 @@ SELECT
   p.slug,
   p.description,
   p.brand,
+  p.stock_quantity as total_stock,
   p.category_id,
+  c.name as category_name,
   p.default_variant_id,
   v.price,
   p.in_stock,
@@ -158,6 +120,8 @@ SELECT
 FROM product p
 JOIN product_variant v 
   ON v.variant_id = p.default_variant_id
+JOIN category_definition c
+  ON p.category_id = c.category_id
 WHERE p.store_id = $1 AND p.product_id = $2 AND p.deleted_at IS NULL
 `
 
@@ -173,7 +137,9 @@ type GetProductBaseRow struct {
 	Slug             sql.NullString
 	Description      sql.NullString
 	Brand            sql.NullString
+	TotalStock       int32
 	CategoryID       int64
+	CategoryName     string
 	DefaultVariantID sql.NullInt64
 	Price            string
 	InStock          bool
@@ -190,13 +156,55 @@ func (q *Queries) GetProductBase(ctx context.Context, arg GetProductBaseParams) 
 		&i.Slug,
 		&i.Description,
 		&i.Brand,
+		&i.TotalStock,
 		&i.CategoryID,
+		&i.CategoryName,
 		&i.DefaultVariantID,
 		&i.Price,
 		&i.InStock,
 		&i.PrimaryImage,
 	)
 	return i, err
+}
+
+const getProductVariantAttributes = `-- name: GetProductVariantAttributes :many
+SELECT
+  ad.attribute_id,
+  ad.name as attribute_name,
+  vav.value as attribute_value
+FROM variant_attribute_value vav
+JOIN attribute_definition ad 
+  ON vav.attribute_id = ad.attribute_id
+WHERE vav.variant_id = $1
+`
+
+type GetProductVariantAttributesRow struct {
+	AttributeID    int64
+	AttributeName  string
+	AttributeValue string
+}
+
+func (q *Queries) GetProductVariantAttributes(ctx context.Context, variantID int64) ([]GetProductVariantAttributesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProductVariantAttributes, variantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProductVariantAttributesRow
+	for rows.Next() {
+		var i GetProductVariantAttributesRow
+		if err := rows.Scan(&i.AttributeID, &i.AttributeName, &i.AttributeValue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProductVariants = `-- name: GetProductVariants :many
@@ -260,6 +268,8 @@ SELECT
   p.brand,
   p.category_id,
   p.default_variant_id,
+  p.stock_quantity as product_total_stock,
+  v.stock_quantity as item_stock,
   v.price,
   p.in_stock,
   v.primary_image_url AS primary_image
@@ -269,6 +279,7 @@ JOIN product_variant v
 WHERE 
   p.store_id = $1 
   AND p.category_id = $2
+  AND p.in_stock = TRUE
   AND p.deleted_at IS NULL
 ORDER BY 
   v.stock_quantity DESC
@@ -282,17 +293,19 @@ type GetTopProductsByCategoryParams struct {
 }
 
 type GetTopProductsByCategoryRow struct {
-	ProductID        int64
-	StoreID          int64
-	Name             string
-	Slug             sql.NullString
-	Description      sql.NullString
-	Brand            sql.NullString
-	CategoryID       int64
-	DefaultVariantID sql.NullInt64
-	Price            string
-	InStock          bool
-	PrimaryImage     string
+	ProductID         int64
+	StoreID           int64
+	Name              string
+	Slug              sql.NullString
+	Description       sql.NullString
+	Brand             sql.NullString
+	CategoryID        int64
+	DefaultVariantID  sql.NullInt64
+	ProductTotalStock int32
+	ItemStock         int32
+	Price             string
+	InStock           bool
+	PrimaryImage      string
 }
 
 func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProductsByCategoryParams) ([]GetTopProductsByCategoryRow, error) {
@@ -313,6 +326,8 @@ func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProduc
 			&i.Brand,
 			&i.CategoryID,
 			&i.DefaultVariantID,
+			&i.ProductTotalStock,
+			&i.ItemStock,
 			&i.Price,
 			&i.InStock,
 			&i.PrimaryImage,
@@ -330,69 +345,33 @@ func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProduc
 	return items, nil
 }
 
-const getVariantOptions = `-- name: GetVariantOptions :many
-SELECT
-  vo.variant_id,
-  ot.name AS option_type,
-  ov.value AS option_value
-FROM variant_option vo
-JOIN option_value ov ON vo.option_value_id = ov.option_value_id
-JOIN option_type ot ON ov.option_type_id = ot.option_type_id
-WHERE vo.variant_id = $1
-`
-
-type GetVariantOptionsRow struct {
-	VariantID   int64
-	OptionType  string
-	OptionValue string
-}
-
-func (q *Queries) GetVariantOptions(ctx context.Context, variantID int64) ([]GetVariantOptionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getVariantOptions, variantID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetVariantOptionsRow
-	for rows.Next() {
-		var i GetVariantOptionsRow
-		if err := rows.Scan(&i.VariantID, &i.OptionType, &i.OptionValue); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listCategoriesByStore = `-- name: ListCategoriesByStore :many
-SELECT category_id, store_id, name, parent_id, created_at
-FROM product_category
-WHERE store_id = $1
-ORDER BY name
+SELECT c.category_id, c.name, pc.name as parent_name
+FROM store_category s
+JOIN category_definition c
+  ON s.category_id = c.category_id
+JOIN category_definition pc
+  ON c.parent_id = pc.category_id
+WHERE s.store_id = $1
+ORDER BY c.name
 `
 
-func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]ProductCategory, error) {
+type ListCategoriesByStoreRow struct {
+	CategoryID int64
+	Name       string
+	ParentName string
+}
+
+func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]ListCategoriesByStoreRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCategoriesByStore, storeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ProductCategory
+	var items []ListCategoriesByStoreRow
 	for rows.Next() {
-		var i ProductCategory
-		if err := rows.Scan(
-			&i.CategoryID,
-			&i.StoreID,
-			&i.Name,
-			&i.ParentID,
-			&i.CreatedAt,
-		); err != nil {
+		var i ListCategoriesByStoreRow
+		if err := rows.Scan(&i.CategoryID, &i.Name, &i.ParentName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -409,26 +388,23 @@ func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]P
 const resolveAttributeIDByName = `-- name: ResolveAttributeIDByName :one
 SELECT attribute_id
 FROM attribute_definition
-WHERE store_id = $1 AND name = $2
+WHERE name = $1
 LIMIT 1
 `
 
-type ResolveAttributeIDByNameParams struct {
-	StoreID int64
-	Name    string
-}
-
-func (q *Queries) ResolveAttributeIDByName(ctx context.Context, arg ResolveAttributeIDByNameParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, resolveAttributeIDByName, arg.StoreID, arg.Name)
+func (q *Queries) ResolveAttributeIDByName(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, resolveAttributeIDByName, name)
 	var attribute_id int64
 	err := row.Scan(&attribute_id)
 	return attribute_id, err
 }
 
 const resolveCategoryIDByName = `-- name: ResolveCategoryIDByName :one
-SELECT category_id
-FROM product_category
-WHERE store_id = $1 AND name = $2
+SELECT c.category_id
+FROM category_definition c
+JOIN store_category s
+  ON s.category_id = c.category_id
+WHERE s.store_id = $1 AND c.name = $2
 LIMIT 1
 `
 

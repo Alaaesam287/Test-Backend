@@ -13,9 +13,7 @@ import (
 
 type AttributeDefinition struct {
 	AttributeID int64
-	StoreID     int64
 	Name        string
-	CategoryID  sql.NullInt64
 }
 
 type Cart struct {
@@ -44,6 +42,17 @@ type CartItem struct {
 	CreatedAt  sql.NullTime
 }
 
+type CategoryAttribute struct {
+	CategoryID  int64
+	AttributeID int64
+}
+
+type CategoryDefinition struct {
+	CategoryID int64
+	Name       string
+	ParentID   sql.NullInt64
+}
+
 type Customer struct {
 	CustomerID int64
 	StoreID    int64
@@ -63,18 +72,6 @@ type CustomerOrder struct {
 	Status      sql.NullString
 	CreatedAt   sql.NullTime
 	UpdatedAt   sql.NullTime
-}
-
-type OptionType struct {
-	OptionTypeID int64
-	StoreID      int64
-	Name         string
-}
-
-type OptionValue struct {
-	OptionValueID int64
-	OptionTypeID  int64
-	Value         string
 }
 
 type OrderItem struct {
@@ -104,25 +101,12 @@ type Product struct {
 	Slug             sql.NullString
 	Description      sql.NullString
 	Brand            sql.NullString
+	StockQuantity    int32
 	CreatedAt        sql.NullTime
 	UpdatedAt        sql.NullTime
 	InStock          bool
 	DeletedAt        sql.NullTime
 	DefaultVariantID sql.NullInt64
-}
-
-type ProductAttributeValue struct {
-	ProductID   int64
-	AttributeID int64
-	Value       string
-}
-
-type ProductCategory struct {
-	CategoryID int64
-	StoreID    int64
-	Name       string
-	ParentID   sql.NullInt64
-	CreatedAt  sql.NullTime
 }
 
 type ProductVariant struct {
@@ -174,6 +158,11 @@ type Store struct {
 	UpdatedAt    sql.NullTime
 }
 
+type StoreCategory struct {
+	StoreID    int64
+	CategoryID int64
+}
+
 type StoreOwner struct {
 	StoreOwnerID int64
 	Name         string
@@ -182,9 +171,10 @@ type StoreOwner struct {
 	CreatedAt    sql.NullTime
 }
 
-type VariantOption struct {
-	VariantID     int64
-	OptionValueID int64
+type VariantAttributeValue struct {
+	VariantID   int64
+	AttributeID int64
+	Value       string
 }
 
 type VisitorSession struct {
