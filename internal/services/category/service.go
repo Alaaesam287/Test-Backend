@@ -14,6 +14,6 @@ func NewService(db *models.Queries) *Service {
 	return &Service{db: db}
 }
 
-func (s *Service) ListCategoriesByStore(ctx context.Context, storeID int64) ([]models.ProductCategory, error) {
+func (s *Service) ListCategoriesByStore(ctx context.Context, storeID int64) ([]models.ListCategoriesByStoreRow, error) {
 	return s.db.ListCategoriesByStore(ctx, storeID)
 }
