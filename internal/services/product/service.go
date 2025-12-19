@@ -28,36 +28,60 @@ func (s *Service) GetFullProduct(ctx context.Context, storeID, productID int64) 
 		StoreID:   storeID,
 		ProductID: productID,
 	})
+	
 	if err != nil {
 		return nil, err
 	}
 
-	//  Attributes
-	attrsRaw, _ := s.q.GetProductAttributes(ctx, productID)
-	attrs := make([]models.AttributeDTO, 0)
+	var defaultVariantDTO models.VariantDTO
 
-	for _, a := range attrsRaw {
-		attrs = append(attrs, models.AttributeDTO{
-			AttributeID: a.AttributeID,
-			Name:        a.Name,
-			Value:       a.Value,
-		})
+	//  All Variants
+	variantsRaw, err := s.q.GetProductVariants(ctx, productID)
+	if err != nil {
+		return nil, err
 	}
 
-	//  Variants
-	variantsRaw, _ := s.q.GetProductVariants(ctx, productID)
 	variants := make([]models.VariantDTO, 0)
 
-	for _, v := range variantsRaw {
-
-		optsRaw, _ := s.q.GetVariantOptions(ctx, v.VariantID)
-		opts := make([]models.VariantOptionDTO, 0)
-
-		for _, o := range optsRaw {
-			opts = append(opts, models.VariantOptionDTO{
-				Type:  o.OptionType,
-				Value: o.OptionValue,
+	for i, v := range variantsRaw {
+		// Get Attributes for each variant
+		variantAttributesRows, err := s.q.GetProductVariantAttributes(ctx, v.VariantID)
+		if err != nil {
+			return nil, err
+		}
+		variantAttributes := make([]models.AttributeDTO, 0)
+		for _, a := range variantAttributesRows {
+			variantAttributes = append(variantAttributes, models.AttributeDTO{
+				AttributeID:    a.AttributeID,
+				AttributeName:  a.AttributeName,
+				AttributeValue: a.AttributeValue,
 			})
+		}
+
+		// Fall over scenario: no default variant set, use first variant as default
+		if i == 0 && !p.DefaultVariantID.Valid {
+			defaultVariantDTO = models.VariantDTO{
+				VariantID:     v.VariantID,
+				SKU:           v.Sku,
+				Price:         v.Price,
+				StockQuantity: v.StockQuantity,
+				ImageURL:      v.PrimaryImageUrl,
+				Attributes:    variantAttributes,
+			}
+			continue
+		}
+
+		// If this is the default variant save it separately
+		if p.DefaultVariantID.Valid && v.VariantID == p.DefaultVariantID.Int64 {
+			defaultVariantDTO = models.VariantDTO{
+				VariantID:     v.VariantID,
+				SKU:           v.Sku,
+				Price:         v.Price,
+				StockQuantity: v.StockQuantity,
+				ImageURL:      v.PrimaryImageUrl,
+				Attributes:    variantAttributes,
+			}
+			continue
 		}
 
 		variants = append(variants, models.VariantDTO{
@@ -66,24 +90,25 @@ func (s *Service) GetFullProduct(ctx context.Context, storeID, productID int64) 
 			Price:         v.Price,
 			StockQuantity: v.StockQuantity,
 			ImageURL:      v.PrimaryImageUrl,
-			Options:       opts,
+			Attributes:    variantAttributes,
 		})
 	}
 
 	return &models.ProductFullDetailsDTO{
 		ProductID:        p.ProductID,
 		StoreID:          p.StoreID,
-		Name:             p.Name,
+		ProductName:      p.Name,
 		Slug:             p.Slug,
 		Description:      p.Description,
 		Brand:            p.Brand,
+		TotalStock:       p.TotalStock,
 		CategoryID:       p.CategoryID,
+		CategoryName:     p.CategoryName,
 		InStock:          p.InStock,
 		Price:            p.Price,
 		PrimaryImage:     p.PrimaryImage,
-		Attributes:       attrs,
+		DefaultVariant:   defaultVariantDTO,
 		Variants:         variants,
-		DefaultVariantID: p.DefaultVariantID,
 	}, nil
 }
 
@@ -113,7 +138,7 @@ func readListProductsTemplate() (string, error) {
 func (s *Service) ResolveAttributeNameToID(ctx context.Context, storeID int64, name string) (int64, error) {
 	// The sqlc function generated from queries.sql is called ResolveAttributeIDByName
 	// (ensure names match your sqlc config; adjust name if sqlc generated a different function).
-	id, err := s.q.ResolveAttributeIDByName(ctx, models.ResolveAttributeIDByNameParams{StoreID: storeID, Name: name})
+	id, err := s.q.ResolveAttributeIDByName(ctx, name)
 	if err != nil {
 		return 0, err
 	}
@@ -179,6 +204,10 @@ func (s *Service) ListProducts(ctx context.Context, storeID int64, f ListProduct
 			&dto.Name,
 			&dto.Slug,
 			&dto.Brand,
+			&dto.Description,
+			&dto.CategoryID,
+			&dto.TotalStock,
+			&dto.ItemStock,
 			&dto.Price,
 			&dto.ImageURL,
 			&dto.InStock,
