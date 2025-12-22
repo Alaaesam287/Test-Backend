@@ -113,6 +113,7 @@ type ProductVariant struct {
 	VariantID       int64
 	ProductID       int64
 	StoreID         int64
+	AttributeHash   string
 	Sku             string
 	Price           string
 	StockQuantity   int32
