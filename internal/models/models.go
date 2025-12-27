@@ -54,13 +54,14 @@ type CategoryDefinition struct {
 }
 
 type Customer struct {
-	CustomerID int64
-	StoreID    int64
-	Name       sql.NullString
-	Email      sql.NullString
-	Phone      sql.NullString
-	Address    pqtype.NullRawMessage
-	CreatedAt  sql.NullTime
+	CustomerID   int64
+	StoreID      int64
+	Name         string
+	Email        string
+	PasswordHash string
+	Phone        sql.NullString
+	Address      pqtype.NullRawMessage
+	CreatedAt    sql.NullTime
 }
 
 type CustomerOrder struct {

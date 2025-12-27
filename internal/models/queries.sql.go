@@ -12,6 +12,87 @@ import (
 	"github.com/google/uuid"
 )
 
+const createCustomer = `-- name: CreateCustomer :one
+INSERT INTO customer (
+  store_id,
+  name,
+  email,
+  password_hash
+) VALUES (
+  $1, $2, $3, $4
+)
+RETURNING customer_id, store_id, name, email, created_at
+`
+
+type CreateCustomerParams struct {
+	StoreID      int64
+	Name         string
+	Email        string
+	PasswordHash string
+}
+
+type CreateCustomerRow struct {
+	CustomerID int64
+	StoreID    int64
+	Name       string
+	Email      string
+	CreatedAt  sql.NullTime
+}
+
+func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error) {
+	row := q.db.QueryRowContext(ctx, createCustomer,
+		arg.StoreID,
+		arg.Name,
+		arg.Email,
+		arg.PasswordHash,
+	)
+	var i CreateCustomerRow
+	err := row.Scan(
+		&i.CustomerID,
+		&i.StoreID,
+		&i.Name,
+		&i.Email,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createStoreOwner = `-- name: CreateStoreOwner :one
+INSERT INTO store_owner (
+  name,
+  email,
+  password_hash
+) VALUES (
+  $1, $2, $3
+)
+RETURNING store_owner_id, name, email, created_at
+`
+
+type CreateStoreOwnerParams struct {
+	Name         string
+	Email        string
+	PasswordHash string
+}
+
+type CreateStoreOwnerRow struct {
+	StoreOwnerID int64
+	Name         string
+	Email        string
+	CreatedAt    sql.NullTime
+}
+
+func (q *Queries) CreateStoreOwner(ctx context.Context, arg CreateStoreOwnerParams) (CreateStoreOwnerRow, error) {
+	row := q.db.QueryRowContext(ctx, createStoreOwner, arg.Name, arg.Email, arg.PasswordHash)
+	var i CreateStoreOwnerRow
+	err := row.Scan(
+		&i.StoreOwnerID,
+		&i.Name,
+		&i.Email,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCartBySession = `-- name: GetCartBySession :one
 SELECT c.cart_id, c.store_id, c.updated_at
 FROM cart c
@@ -100,6 +181,47 @@ func (q *Queries) GetCartItems(ctx context.Context, cartID int64) ([]GetCartItem
 		return nil, err
 	}
 	return items, nil
+}
+
+const getCustomerByEmail = `-- name: GetCustomerByEmail :one
+SELECT
+  customer_id,
+  store_id,
+  name,
+  email,
+  password_hash,
+  created_at
+FROM customer
+WHERE email = $1
+  AND store_id = $2
+`
+
+type GetCustomerByEmailParams struct {
+	Email   string
+	StoreID int64
+}
+
+type GetCustomerByEmailRow struct {
+	CustomerID   int64
+	StoreID      int64
+	Name         string
+	Email        string
+	PasswordHash string
+	CreatedAt    sql.NullTime
+}
+
+func (q *Queries) GetCustomerByEmail(ctx context.Context, arg GetCustomerByEmailParams) (GetCustomerByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, getCustomerByEmail, arg.Email, arg.StoreID)
+	var i GetCustomerByEmailRow
+	err := row.Scan(
+		&i.CustomerID,
+		&i.StoreID,
+		&i.Name,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getProductBase = `-- name: GetProductBase :one
@@ -258,6 +380,30 @@ func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]Ge
 	return items, nil
 }
 
+const getStoreOwnerByEmail = `-- name: GetStoreOwnerByEmail :one
+SELECT
+  store_owner_id,
+  name,
+  email,
+  password_hash,
+  created_at
+FROM store_owner
+WHERE email = $1
+`
+
+func (q *Queries) GetStoreOwnerByEmail(ctx context.Context, email string) (StoreOwner, error) {
+	row := q.db.QueryRowContext(ctx, getStoreOwnerByEmail, email)
+	var i StoreOwner
+	err := row.Scan(
+		&i.StoreOwnerID,
+		&i.Name,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getTopProductsByCategory = `-- name: GetTopProductsByCategory :many
 SELECT 
   p.product_id,
@@ -343,6 +489,27 @@ func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProduc
 		return nil, err
 	}
 	return items, nil
+}
+
+const isStoreOwner = `-- name: IsStoreOwner :one
+SELECT EXISTS (
+    SELECT 1
+    FROM store
+    WHERE store_id = $1
+      AND store_owner_id = $2
+)
+`
+
+type IsStoreOwnerParams struct {
+	StoreID      int64
+	StoreOwnerID int64
+}
+
+func (q *Queries) IsStoreOwner(ctx context.Context, arg IsStoreOwnerParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isStoreOwner, arg.StoreID, arg.StoreOwnerID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listCategoriesByStore = `-- name: ListCategoriesByStore :many
