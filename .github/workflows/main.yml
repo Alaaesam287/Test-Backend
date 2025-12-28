@@ -40,8 +40,6 @@ jobs:
             -exclude-dir=internal/models
             ./...
 
-github/codeql-action/analyze@v3
-
       # 8️⃣ Check Go dependencies for known vulns (SCA)
       - name: Check for Go vulnerabilities
         uses: golang/govulncheck-action@v1
