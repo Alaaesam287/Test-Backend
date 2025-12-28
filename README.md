@@ -54,6 +54,9 @@ DB_PASSWORD=<your-db-password>
 DB_NAME=<your-db-name>
 DB_HOST=db
 DB_PORT=<host-port-for-db>
+
+# Auth
+JWT_SECRET=<your-jwt-secret>
 ```
 
 > This file stores secrets and host-specific configuration. **Do not commit it to version control.**
