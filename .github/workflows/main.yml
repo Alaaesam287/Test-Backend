@@ -1,47 +1,29 @@
-name: Go Security Scans
-
-permissions:
-  contents: read
-  security-events: write
-
+name: Run Gosec
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
-
+    branches:
+      - main
 jobs:
-  security:
+  tests:
     runs-on: ubuntu-latest
-
+    env:
+      GO111MODULE: on
     steps:
-      # 1️⃣ Checkout source code
       - name: Checkout Source
-        uses: actions/checkout@v4
-
-      # 2️⃣ Setup Go
-      - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/checkout@v3
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
         with:
-          go-version: '1.22'
-          cache: true
-
-      # 3️⃣ Download dependencies
+          args: ./...
+          
       - name: Download dependencies
         run: go mod download
 
-      # 4️⃣ Run Gosec (SAST)
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@v2.19.0
-        with:
-          args: >
-            -severity high
-            -confidence medium
-            -exclude-dir=internal/models
-            ./...
-
-      # 8️⃣ Check Go dependencies for known vulns (SCA)
       - name: Check for Go vulnerabilities
-        uses: golang/govulncheck-action@v1
+        uses: golang/govulncheck-action@v1 # The official GitHub Action
         with:
+          # Optional: can specify different paths or formats
           packages: ./...
