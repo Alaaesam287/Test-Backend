@@ -40,20 +40,7 @@ jobs:
             -exclude-dir=internal/models
             ./...
 
-      # 5️⃣ Initialize CodeQL
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: go
-          queries: security-and-quality
-
-      # 6️⃣ Autobuild (required for Go CodeQL)
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      # 7️⃣ Perform CodeQL Analysis
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+github/codeql-action/analyze@v3
 
       # 8️⃣ Check Go dependencies for known vulns (SCA)
       - name: Check for Go vulnerabilities
