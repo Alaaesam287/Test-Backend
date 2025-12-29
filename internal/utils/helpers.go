@@ -52,6 +52,11 @@ func ParseJWT(tokenStr, secret string) (*jwt.Token, jwt.MapClaims, error) {
 	return token, claims, err
 }
 
+// Password policy check will be implemented later
+func CheckPasswordPolicy(password string) error {
+	return nil
+}
+
 func InterfaceSlice[T any](s []T) []interface{} {
 	out := make([]interface{}, len(s))
 	for i := range s {

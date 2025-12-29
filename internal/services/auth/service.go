@@ -28,6 +28,11 @@ func (s *Service) Register(
 	name, email, password, role string,
 	storeID *int64,
 ) (string, error) {
+	
+	err := utils.CheckPasswordPolicy(password)
+	if err != nil {
+		return "", err
+	}
 
 	hashed, err := utils.HashPassword(password)
 	if err != nil {
