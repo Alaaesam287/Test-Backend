@@ -22,7 +22,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	storeID, _ := strconv.ParseInt(c.Param("store_id"), 10, 64)
 	productID, _ := strconv.ParseInt(c.Param("product_id"), 10, 64)
 
-	product, err := h.Service.GetFullProduct(c, storeID, productID)
+	product, err := h.Service.GetFullProduct(c.Request.Context(), storeID, productID)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
 			"error": "Product not found",

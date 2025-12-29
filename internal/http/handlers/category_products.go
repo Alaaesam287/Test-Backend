@@ -26,7 +26,7 @@ func (h *CategoryProductHandler) GetTopProducts(c *gin.Context) {
 	limit, _ := strconv.ParseInt(limitStr, 10, 32)
 
 	products, err := h.service.GetTopProductsByCategory(
-		c,
+		c.Request.Context(),
 		storeID,
 		categoryID,
 		int32(limit),
