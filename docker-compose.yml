@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./internal/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./internal/database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./internal/database/seed_admin.sql:/docker-entrypoint-initdb.d/02_seed_admin.sql:ro
 
   app:
