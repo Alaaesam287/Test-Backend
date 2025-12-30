@@ -577,6 +577,37 @@ func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]L
 	return items, nil
 }
 
+const listCategoryAttributes = `-- name: ListCategoryAttributes :many
+SELECT a.attribute_id, a.name
+FROM category_attribute ca
+JOIN attribute_definition a 
+ON a.attribute_id = ca.attribute_id
+WHERE ca.category_id = $1
+`
+
+func (q *Queries) ListCategoryAttributes(ctx context.Context, categoryID int64) ([]AttributeDefinition, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoryAttributes, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AttributeDefinition
+	for rows.Next() {
+		var i AttributeDefinition
+		if err := rows.Scan(&i.AttributeID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resolveAttributeIDByName = `-- name: ResolveAttributeIDByName :one
 SELECT attribute_id
 FROM attribute_definition

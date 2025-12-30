@@ -35,6 +35,7 @@ func SetupRouter(
 			)
 
 			stores.GET("/categories", categoryHandler.ListCategories)
+			stores.GET("/categories/:category_id/attributes", categoryHandler.ListAttributes)
 			stores.GET("/categories/:id/top-products", categoryProductHandler.GetTopProducts)
 			stores.GET("/products", productHandler.ListProducts)
 			stores.GET("/products/:product_id", productHandler.GetProduct)

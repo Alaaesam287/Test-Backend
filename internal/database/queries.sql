@@ -174,3 +174,10 @@ SELECT
 FROM customer
 WHERE email = $1
   AND store_id = $2;
+
+-- name: ListCategoryAttributes :many
+SELECT a.attribute_id, a.name
+FROM category_attribute ca
+JOIN attribute_definition a 
+ON a.attribute_id = ca.attribute_id
+WHERE ca.category_id = $1;

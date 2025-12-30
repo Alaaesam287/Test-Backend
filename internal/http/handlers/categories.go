@@ -33,3 +33,26 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 
 	c.JSON(http.StatusOK, categories)
 }
+
+func (h *CategoryHandler) ListAttributes(c *gin.Context) {
+	storeParam := c.Param("store_id")
+	if _, err := strconv.ParseInt(storeParam, 10, 64); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid store_id"})
+		return
+	}
+
+	categoryParam := c.Param("category_id")
+	categoryID, err := strconv.ParseInt(categoryParam, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category_id"})
+		return
+	}
+
+	attributes, err := h.service.ListAttributesByCategory(c.Request.Context(), categoryID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch attributes"})
+		return
+	}
+
+	c.JSON(http.StatusOK, attributes)
+}
