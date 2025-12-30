@@ -181,3 +181,8 @@ FROM category_attribute ca
 JOIN attribute_definition a 
 ON a.attribute_id = ca.attribute_id
 WHERE ca.category_id = $1;
+
+-- name: GetAdminByEmail :one
+SELECT admin_id, email, password_hash
+FROM admin
+WHERE email = $1;

@@ -12,6 +12,7 @@ func SetupRouter(
 	categoryProductHandler *handlers.CategoryProductHandler,
 	cartHandler *handlers.CartHandler,
 	authHandler *handlers.AuthHandler,
+	adminAuthHandler *handlers.AdminAuthHandler,
 	storeOwnerChecker *middleware.StoreOwnerChecker,
 	jwtSecret string,
 ) *gin.Engine {
@@ -36,7 +37,7 @@ func SetupRouter(
 
 			stores.GET("/categories", categoryHandler.ListCategories)
 			stores.GET("/categories/:category_id/attributes", categoryHandler.ListAttributes)
-			stores.GET("/categories/:id/top-products", categoryProductHandler.GetTopProducts)
+			stores.GET("/categories/:category_id/top-products", categoryProductHandler.GetTopProducts)
 			stores.GET("/products", productHandler.ListProducts)
 			stores.GET("/products/:product_id", productHandler.GetProduct)
 	}
@@ -51,6 +52,8 @@ func SetupRouter(
 
 	// Admin-only routes
 	admin := auth.Group("/admin")
+	admin.POST("/login", adminAuthHandler.Login)
+	
 	admin.Use(middleware.RequireRole("admin"))
 	{
 		// admin endpoints here

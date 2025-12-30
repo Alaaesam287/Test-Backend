@@ -110,6 +110,25 @@ func (q *Queries) CreateStoreOwner(ctx context.Context, arg CreateStoreOwnerPara
 	return i, err
 }
 
+const getAdminByEmail = `-- name: GetAdminByEmail :one
+SELECT admin_id, email, password_hash
+FROM admin
+WHERE email = $1
+`
+
+type GetAdminByEmailRow struct {
+	AdminID      int64
+	Email        string
+	PasswordHash string
+}
+
+func (q *Queries) GetAdminByEmail(ctx context.Context, email string) (GetAdminByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, getAdminByEmail, email)
+	var i GetAdminByEmailRow
+	err := row.Scan(&i.AdminID, &i.Email, &i.PasswordHash)
+	return i, err
+}
+
 const getCartBySession = `-- name: GetCartBySession :one
 SELECT c.cart_id, c.store_id, c.updated_at
 FROM cart c

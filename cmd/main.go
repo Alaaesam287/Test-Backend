@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"github.com/Secure-Website-Builder/Backend/internal/config"
@@ -21,6 +21,11 @@ import (
 )
 
 func main() {
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment")
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
@@ -64,6 +69,7 @@ func main() {
 	categoryProductHandler := handlers.NewCategoryProductHandler(productService)
 	cartHandler := handlers.NewCartHandler(cartService)
 	authHandler := handlers.NewAuthHandler(authService)
+	adminAuthHandler:= handlers.NewAdminAuthHandler(authService)
 
 	// Router
 	r := router.SetupRouter(
@@ -72,11 +78,12 @@ func main() {
 		categoryProductHandler,
 		cartHandler,
 		authHandler,
+		adminAuthHandler,
 		storeOwnerChecker,
 		cfg.JWTSecret,
 	)
 
-	port := os.Getenv("APP_PORT")
+	port := cfg.AppPort
 	if port == "" {
 		port = "8080"
 	}

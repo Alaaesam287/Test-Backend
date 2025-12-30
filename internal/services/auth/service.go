@@ -161,3 +161,26 @@ func (s *Service) Login(
 		24*time.Hour,
 	)
 }
+
+func (s *Service) AdminLogin(
+	ctx context.Context,
+	email, password string,
+) (string, error) {
+
+	admin, err := s.queries.GetAdminByEmail(ctx, email)
+	if err != nil {
+		return "", errors.New("invalid credentials")
+	}
+
+	if !utils.CheckPasswordHash(password, admin.PasswordHash) {
+		return "", errors.New("invalid credentials")
+	}
+
+	return utils.GenerateJWT(
+		admin.AdminID,
+		"admin",
+		nil, // storeID is ALWAYS nil for admin
+		s.jwtSecret,
+		24*time.Hour,
+	)
+}

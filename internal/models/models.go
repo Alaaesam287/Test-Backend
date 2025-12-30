@@ -12,6 +12,13 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type Admin struct {
+	AdminID      int64
+	Email        string
+	PasswordHash string
+	CreatedAt    sql.NullTime
+}
+
 type AttributeDefinition struct {
 	AttributeID int64
 	Name        string
