@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -54,6 +56,15 @@ func ParseJWT(tokenStr, secret string) (*jwt.Token, jwt.MapClaims, error) {
 	}
 
 	return token, claims, err
+}
+
+func GenerateRefreshToken() (string, error) {
+	b := make([]byte, 64)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // Password policy check will be implemented later
