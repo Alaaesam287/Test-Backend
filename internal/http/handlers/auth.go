@@ -54,7 +54,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		addr = req.Address
 	}
 
-	token, err := h.service.Register(
+	accessToken, refreshToken, err := h.service.Register(
 		c.Request.Context(),
 		req.Name,
 		req.Email,
@@ -68,8 +68,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, AuthResponse{Token: token})
+	c.SetCookie(
+		"refresh_token",
+		refreshToken,
+		7*24*60*60,
+		"/",
+		"",
+		true,
+		true,
+	)
+	c.JSON(http.StatusOK, AuthResponse{Token: accessToken})
 }
 
 
@@ -80,7 +88,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.service.Login(
+	accessToken, refreshToken, err := h.service.Login(
 		c.Request.Context(),
 		req.Email,
 		req.Password,
@@ -92,5 +100,46 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, AuthResponse{Token: token})
+	c.SetCookie(
+		"refresh_token",
+		refreshToken,
+		7*24*60*60,
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	c.JSON(http.StatusOK, AuthResponse{Token: accessToken})
+}
+
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
+		return
+	}
+
+	access, newRefresh, err := h.service.Refresh(
+		c.Request.Context(),
+		refreshToken,
+	)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	
+	c.SetCookie(
+		"refresh_token",
+		newRefresh,
+		7*24*60*60,
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": access,
+	})
 }

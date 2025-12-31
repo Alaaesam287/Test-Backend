@@ -22,6 +22,7 @@ func SetupRouter(
 	// Auth routes (public)
 	r.POST("/auth/register", authHandler.Register)
 	r.POST("/auth/login", authHandler.Login)
+	r.POST("/auth/refresh", authHandler.RefreshToken)
 
 	auth := r.Group("/")
 	auth.Use(middleware.JWTAuth(jwtSecret))
