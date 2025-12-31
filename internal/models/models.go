@@ -6,6 +6,7 @@ package models
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/Secure-Website-Builder/Backend/internal/types"
 	"github.com/google/uuid"
@@ -145,6 +146,17 @@ type ProductView struct {
 	StoreID       int64
 	SessionID     uuid.UUID
 	ViewedAt      sql.NullTime
+}
+
+type RefreshToken struct {
+	RefreshTokenID int64
+	Token          string
+	UserID         int64
+	UserRole       string
+	StoreID        sql.NullInt64
+	ExpiresAt      time.Time
+	Revoked        sql.NullBool
+	CreatedAt      sql.NullTime
 }
 
 type Shipment struct {
