@@ -69,7 +69,6 @@ func main() {
 	categoryProductHandler := handlers.NewCategoryProductHandler(productService)
 	cartHandler := handlers.NewCartHandler(cartService)
 	authHandler := handlers.NewAuthHandler(authService)
-	adminAuthHandler:= handlers.NewAdminAuthHandler(authService)
 
 	// Router
 	r := router.SetupRouter(
@@ -78,7 +77,6 @@ func main() {
 		categoryProductHandler,
 		cartHandler,
 		authHandler,
-		adminAuthHandler,
 		storeOwnerChecker,
 		cfg.JWTSecret,
 	)

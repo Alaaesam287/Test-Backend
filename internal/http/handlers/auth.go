@@ -113,6 +113,32 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, AuthResponse{Token: accessToken})
 }
 
+type AdminLoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+func (h *AuthHandler) AdminLogin(c *gin.Context) {
+	var req AdminLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := h.service.AdminLogin(
+		c.Request.Context(),
+		req.Email,
+		req.Password,
+	)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Cookie("refresh_token")
 	if err != nil {

@@ -12,7 +12,6 @@ func SetupRouter(
 	categoryProductHandler *handlers.CategoryProductHandler,
 	cartHandler *handlers.CartHandler,
 	authHandler *handlers.AuthHandler,
-	adminAuthHandler *handlers.AdminAuthHandler,
 	storeOwnerChecker *middleware.StoreOwnerChecker,
 	jwtSecret string,
 ) *gin.Engine {
@@ -23,6 +22,7 @@ func SetupRouter(
 	r.POST("/auth/register", authHandler.Register)
 	r.POST("/auth/login", authHandler.Login)
 	r.POST("/auth/refresh", authHandler.RefreshToken)
+	r.POST("/admin/auth/login", authHandler.AdminLogin)
 
 	auth := r.Group("/")
 	auth.Use(middleware.JWTAuth(jwtSecret))
@@ -53,8 +53,6 @@ func SetupRouter(
 
 	// Admin-only routes
 	admin := r.Group("/admin")
-	admin.POST("/login", adminAuthHandler.Login)
-	
 	admin.Use(middleware.RequireRole("admin"))
 	{
 		// admin endpoints here
