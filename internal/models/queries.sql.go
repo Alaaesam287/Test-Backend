@@ -8,6 +8,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/Secure-Website-Builder/Backend/internal/types"
 	"github.com/google/uuid"
@@ -62,6 +63,30 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const createRefreshToken = `-- name: CreateRefreshToken :exec
+INSERT INTO refresh_token (token, user_id, user_role, store_id, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type CreateRefreshTokenParams struct {
+	Token     string
+	UserID    int64
+	UserRole  string
+	StoreID   sql.NullInt64
+	ExpiresAt time.Time
+}
+
+func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, createRefreshToken,
+		arg.Token,
+		arg.UserID,
+		arg.UserRole,
+		arg.StoreID,
+		arg.ExpiresAt,
+	)
+	return err
 }
 
 const createStoreOwner = `-- name: CreateStoreOwner :one
@@ -416,6 +441,28 @@ func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]Ge
 	return items, nil
 }
 
+const getRefreshToken = `-- name: GetRefreshToken :one
+SELECT refresh_token_id, token, user_id, user_role, store_id, expires_at, revoked, created_at
+FROM refresh_token
+WHERE token = $1 AND revoked = FALSE
+`
+
+func (q *Queries) GetRefreshToken(ctx context.Context, token string) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshToken, token)
+	var i RefreshToken
+	err := row.Scan(
+		&i.RefreshTokenID,
+		&i.Token,
+		&i.UserID,
+		&i.UserRole,
+		&i.StoreID,
+		&i.ExpiresAt,
+		&i.Revoked,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getStoreOwnerByEmail = `-- name: GetStoreOwnerByEmail :one
 SELECT
   store_owner_id,
@@ -660,4 +707,15 @@ func (q *Queries) ResolveCategoryIDByName(ctx context.Context, arg ResolveCatego
 	var category_id int64
 	err := row.Scan(&category_id)
 	return category_id, err
+}
+
+const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
+UPDATE refresh_token
+SET revoked = TRUE
+WHERE token = $1
+`
+
+func (q *Queries) RevokeRefreshToken(ctx context.Context, token string) error {
+	_, err := q.db.ExecContext(ctx, revokeRefreshToken, token)
+	return err
 }

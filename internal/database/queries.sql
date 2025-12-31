@@ -186,3 +186,17 @@ WHERE ca.category_id = $1;
 SELECT admin_id, email, password_hash
 FROM admin
 WHERE email = $1;
+
+-- name: CreateRefreshToken :exec
+INSERT INTO refresh_token (token, user_id, user_role, store_id, expires_at)
+VALUES ($1, $2, $3, $4, $5);
+
+-- name: GetRefreshToken :one
+SELECT *
+FROM refresh_token
+WHERE token = $1 AND revoked = FALSE;
+
+-- name: RevokeRefreshToken :exec
+UPDATE refresh_token
+SET revoked = TRUE
+WHERE token = $1;
