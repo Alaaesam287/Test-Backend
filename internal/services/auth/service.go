@@ -299,3 +299,15 @@ func (s *Service) Refresh(
 
 	return accessToken, newRT, nil
 }
+
+func (s *Service) Logout(
+	ctx context.Context,
+	refreshToken string,
+) error {
+
+	if refreshToken == "" {
+		return nil
+	}
+
+	return s.queries.RevokeRefreshToken(ctx, refreshToken)
+}

@@ -167,3 +167,25 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		"access_token": access,
 	})
 }
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	_ = h.service.Logout(c.Request.Context(), refreshToken)
+
+	c.SetCookie(
+		"refresh_token",
+		"",
+		-1,
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	c.Status(http.StatusNoContent)
+}

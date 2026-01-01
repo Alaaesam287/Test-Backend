@@ -21,6 +21,7 @@ func SetupRouter(
 	// Auth routes (public)
 	r.POST("/auth/register", authHandler.Register)
 	r.POST("/auth/login", authHandler.Login)
+	r.POST("/auth/logout", authHandler.Logout)
 	r.POST("/auth/refresh", authHandler.RefreshToken)
 	r.POST("/admin/auth/login", authHandler.AdminLogin)
 
