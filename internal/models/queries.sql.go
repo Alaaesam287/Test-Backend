@@ -65,7 +65,8 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 	return i, err
 }
 
-const createRefreshToken = `-- name: CreateRefreshToken :exec // #nosec
+// #nosec G101
+const createRefreshToken = `-- name: CreateRefreshToken :exec 
 INSERT INTO refresh_token (token, user_id, user_role, store_id, expires_at)
 VALUES ($1, $2, $3, $4, $5)
 `
@@ -441,7 +442,8 @@ func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]Ge
 	return items, nil
 }
 
-const getRefreshToken = `-- name: GetRefreshToken :one // #nosec
+// #nosec G101
+const getRefreshToken = `-- name: GetRefreshToken :one 
 SELECT refresh_token_id, token, user_id, user_role, store_id, expires_at, revoked, created_at
 FROM refresh_token
 WHERE token = $1 AND revoked = FALSE
@@ -709,7 +711,8 @@ func (q *Queries) ResolveCategoryIDByName(ctx context.Context, arg ResolveCatego
 	return category_id, err
 }
 
-const revokeRefreshToken = `-- name: RevokeRefreshToken :exec  // #nosec
+// #nosec G101
+const revokeRefreshToken = `-- name: RevokeRefreshToken :exec  
 UPDATE refresh_token
 SET revoked = TRUE
 WHERE token = $1
