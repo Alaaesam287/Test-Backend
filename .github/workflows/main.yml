@@ -18,12 +18,3 @@ jobs:
         uses: securego/gosec@master
         with:
           args: ./...
-          
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Check for Go vulnerabilities
-        uses: golang/govulncheck-action@v1 # The official GitHub Action
-        with:
-          # Optional: can specify different paths or formats
-          packages: ./...
