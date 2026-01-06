@@ -90,6 +90,7 @@ CREATE TABLE variant_attribute_value (
 CREATE TABLE category_attribute (
   category_id     BIGINT NOT NULL REFERENCES category_definition(category_id) ON DELETE CASCADE,
   attribute_id    BIGINT NOT NULL REFERENCES attribute_definition(attribute_id),
+  is_required     BOOLEAN DEFAULT FALSE NOT NULL,
   PRIMARY KEY (category_id, attribute_id)
 );
 
