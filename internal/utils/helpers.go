@@ -2,11 +2,16 @@ package utils
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
+	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -71,6 +76,21 @@ func GenerateRefreshToken() (string, error) {
 func CheckPasswordPolicy(password string) error {
 	return nil
 }
+
+func HashAttributes(attrs []models.VariantAttributeInput) string {
+	sort.Slice(attrs, func(i, j int) bool {
+		return attrs[i].AttributeID < attrs[j].AttributeID
+	})
+
+	var parts []string
+	for _, a := range attrs {
+		parts = append(parts, fmt.Sprintf("%d:%s", a.AttributeID, a.Value))
+	}
+
+	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
+	return hex.EncodeToString(sum[:])
+}
+
 
 func InterfaceSlice[T any](s []T) []interface{} {
 	out := make([]interface{}, len(s))
