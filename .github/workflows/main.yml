@@ -24,7 +24,7 @@ jobs:
         continue-on-error: true
         uses: securego/gosec@master
         with:
-          args: "-severity medium ./..."
+          args: "-severity medium -confidence medium ./..."
 
       - name: Run Gosec (Blocking on PR to main)
         if: github.event_name == 'pull_request'
