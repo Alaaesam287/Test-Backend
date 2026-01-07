@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16
+    container_name: myapp_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./internal/database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./internal/database/seed_admin.sql:/docker-entrypoint-initdb.d/02_seed_admin.sql:ro
+      - ./internal/database/seed_categories.sql:/docker-entrypoint-initdb.d/03_seed_categories.sql:ro
+
+  app:
+    build: .
+    container_name: myapp_app
+    depends_on:
+      - db
+    env_file: .env
+    volumes:
+      - .:/app
+    ports:
+      - "${APP_PORT}:8080"
+    command: ["go", "run", "cmd/main.go"]
+
+volumes:
+  pgdata:

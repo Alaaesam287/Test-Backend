@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - schema: "internal/database/schema.sql"
+    queries: "internal/database/queries.sql"
+    engine: "postgresql"
+    gen:
+      go:
+        package: "models"
+        out: "internal/models"
+        overrides:
+          - db_type: "jsonb"
+            nullable: true
+            go_type: "github.com/Secure-Website-Builder/Backend/internal/types.NullableAddress"

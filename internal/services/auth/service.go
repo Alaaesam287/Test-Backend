@@ -1,0 +1,313 @@
+package auth
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"time"
+
+	"github.com/Secure-Website-Builder/Backend/internal/models"
+	"github.com/Secure-Website-Builder/Backend/internal/types"
+	"github.com/Secure-Website-Builder/Backend/internal/utils"
+)
+
+type Service struct {
+	queries   *models.Queries
+	jwtSecret string
+}
+
+func New(queries *models.Queries, jwtSecret string) *Service {
+	return &Service{
+		queries:   queries,
+		jwtSecret: jwtSecret,
+	}
+}
+
+/* ================= REGISTER ================= */
+
+func (s *Service) Register(
+	ctx context.Context,
+	name, email, password, role string,
+	storeID *int64,
+	phone *string,
+	address *types.Address,
+) (accessToken, refreshToken string, err error) {
+
+	err = utils.CheckPasswordPolicy(password)
+	if err != nil {
+		return "", "", err
+	}
+
+	hashed, err := utils.HashPassword(password)
+	if err != nil {
+		return "", "", err
+	}
+
+	addr := types.NullableAddress{Valid: false}
+	if address != nil {
+		addr = types.NullableAddress{
+			Addr:  address,
+			Valid: true,
+		}
+	}
+
+	phoneSQL := sql.NullString{}
+	if phone != nil {
+		phoneSQL = sql.NullString{
+			String: *phone,
+			Valid:  true,
+		}
+	}
+
+	var userID int64
+
+	switch role {
+
+	case "store_owner":
+		user, err := s.queries.CreateStoreOwner(ctx, models.CreateStoreOwnerParams{
+			Name:         name,
+			Email:        email,
+			PasswordHash: hashed,
+			Phone:        phoneSQL,
+			Address:      addr,
+		})
+		if err != nil {
+			return "", "", err
+		}
+		userID = user.StoreOwnerID
+
+	case "customer":
+		if storeID == nil {
+			return "", "", errors.New("store_id is required")
+		}
+
+		user, err := s.queries.CreateCustomer(ctx, models.CreateCustomerParams{
+			StoreID:      *storeID,
+			Name:         name,
+			Email:        email,
+			PasswordHash: hashed,
+			Phone:        phoneSQL,
+			Address:      addr,
+		})
+		if err != nil {
+			return "", "", err
+		}
+		userID = user.CustomerID
+
+	default:
+		return "", "", errors.New("invalid role")
+	}
+
+	accessToken, err = utils.GenerateJWT(
+		userID,
+		role,
+		storeID,
+		s.jwtSecret,
+		24*time.Hour,
+	)
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err = utils.GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
+
+	nullableStoreID := sql.NullInt64{
+		Valid: false,
+	}
+	if storeID != nil {
+		nullableStoreID = sql.NullInt64{
+			Int64: *storeID,
+			Valid: true,
+		}
+	}
+
+	err = s.queries.CreateRefreshToken(ctx, models.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    userID,
+		UserRole:  role,
+		StoreID:   nullableStoreID,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+/* ================= LOGIN ================= */
+
+func (s *Service) Login(
+	ctx context.Context,
+	email, password, role string,
+	storeID *int64,
+) (accessToken, refreshToken string, err error) {
+
+	var (
+		userID int64
+		hashed string
+	)
+
+	switch role {
+
+	case "store_owner":
+		user, err := s.queries.GetStoreOwnerByEmail(ctx, email)
+		if err != nil {
+			return "", "", errors.New("invalid credentials")
+		}
+		userID = user.StoreOwnerID
+		hashed = user.PasswordHash
+
+	case "customer":
+		if storeID == nil {
+			return "", "", errors.New("store_id is required")
+		}
+
+		user, err := s.queries.GetCustomerByEmail(ctx, models.GetCustomerByEmailParams{
+			Email:   email,
+			StoreID: *storeID,
+		})
+		if err != nil {
+			return "", "", errors.New("invalid credentials")
+		}
+		userID = user.CustomerID
+		hashed = user.PasswordHash
+
+	default:
+		return "", "", errors.New("invalid role")
+	}
+
+	if !utils.CheckPasswordHash(password, hashed) {
+		return "", "", errors.New("invalid credentials")
+	}
+
+	accessToken, err = utils.GenerateJWT(
+		userID,
+		role,
+		storeID,
+		s.jwtSecret,
+		24*time.Hour,
+	)
+
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err = utils.GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
+
+	nullableStoreID := sql.NullInt64{
+		Valid: false,
+	}
+	if storeID != nil {
+		nullableStoreID = sql.NullInt64{
+			Int64: *storeID,
+			Valid: true,
+		}
+	}
+
+	err = s.queries.CreateRefreshToken(ctx, models.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    userID,
+		UserRole:  role,
+		StoreID:   nullableStoreID,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+func (s *Service) AdminLogin(
+	ctx context.Context,
+	email, password string,
+) (string, error) {
+
+	admin, err := s.queries.GetAdminByEmail(ctx, email)
+	if err != nil {
+		return "", errors.New("invalid credentials")
+	}
+
+	if !utils.CheckPasswordHash(password, admin.PasswordHash) {
+		return "", errors.New("invalid credentials")
+	}
+
+	return utils.GenerateJWT(
+		admin.AdminID,
+		"admin",
+		nil, // storeID is ALWAYS nil for admin
+		s.jwtSecret,
+		24*time.Hour,
+	)
+}
+
+func (s *Service) Refresh(
+	ctx context.Context,
+	refreshToken string,
+) (string, string, error) {
+
+	rt, err := s.queries.GetRefreshToken(ctx, refreshToken)
+	if err != nil {
+		return "", "", errors.New("invalid refresh token")
+	}
+
+	if rt.ExpiresAt.Before(time.Now()) {
+		return "", "", errors.New("refresh token expired")
+	}
+
+	// rotate refresh token
+	if err := s.queries.RevokeRefreshToken(ctx, refreshToken); err != nil {
+		return "", "", err
+	}
+
+	newRT, err := utils.GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := s.queries.CreateRefreshToken(ctx, models.CreateRefreshTokenParams{
+		Token:     newRT,
+		UserID:    rt.UserID,
+		UserRole:  rt.UserRole,
+		StoreID:   rt.StoreID,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}); err != nil {
+		return "", "", err
+	}
+
+	var storeID *int64
+	if rt.StoreID.Valid {
+		storeID = &rt.StoreID.Int64
+	}
+
+	// issue new access token
+	accessToken, err := utils.GenerateJWT(
+		rt.UserID,
+		rt.UserRole,
+		storeID,
+		s.jwtSecret,
+		15*time.Minute,
+	)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, newRT, nil
+}
+
+func (s *Service) Logout(
+	ctx context.Context,
+	refreshToken string,
+) error {
+
+	if refreshToken == "" {
+		return nil
+	}
+
+	return s.queries.RevokeRefreshToken(ctx, refreshToken)
+}
