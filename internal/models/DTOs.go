@@ -69,3 +69,26 @@ type CartDTO struct {
 	Total     float64       `json:"total"`
 	UpdatedAt sql.NullTime  `json:"updated_at"`
 }
+
+
+type VariantAttributeInput struct {
+	AttributeID int64  `json:"attribute_id"`
+	Value       string `json:"value"`
+}
+
+type VariantInput struct {
+	SKU        string                  `json:"sku"`
+	Price      float64                 `json:"price"`
+	Stock      int32                   `json:"stock"`
+	ImageURL   string                  `json:"image_url"`
+	Attributes []VariantAttributeInput `json:"attributes"`
+}
+
+type CreateProductInput struct {
+	CategoryID int64       `json:"category_id"`
+	Name       string      `json:"name"`
+	Slug       string      `json:"slug"`
+	Description string     `json:"description"`
+	Brand      string      `json:"brand"`
+	Variant    VariantInput `json:"variant"`
+}

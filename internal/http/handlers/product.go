@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/Secure-Website-Builder/Backend/internal/database"
+	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/Secure-Website-Builder/Backend/internal/services/product"
 	"github.com/gin-gonic/gin"
 )
@@ -185,4 +186,49 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 			"limit": limit,
 		},
 	})
+}
+
+func (h *ProductHandler) CreateProduct(c *gin.Context) {
+	storeID, _ := strconv.ParseInt(c.Param("store_id"), 10, 64)
+
+	var req models.CreateProductInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	product, variant, err := h.Service.CreateProduct(c.Request.Context(), storeID, req)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(201, gin.H{
+		"product": product,
+		"default_variant": variant,
+	})
+}
+
+func (h *ProductHandler) AddVariant(c *gin.Context) {
+	storeID, _ := strconv.ParseInt(c.Param("store_id"), 10, 64)
+	productID, _ := strconv.ParseInt(c.Param("product_id"), 10, 64)
+
+	var req models.VariantInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	variant, err := h.Service.AddVariant(
+		c.Request.Context(),
+		storeID,
+		productID,
+		req,
+	)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(201, gin.H{"variant": variant})
 }

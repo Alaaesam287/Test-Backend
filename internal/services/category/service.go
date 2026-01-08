@@ -18,6 +18,6 @@ func (s *Service) ListCategoriesByStore(ctx context.Context, storeID int64) ([]m
 	return s.db.ListCategoriesByStore(ctx, storeID)
 }
 
-func (s *Service) ListAttributesByCategory(ctx context.Context, categoryID int64) ([]models.AttributeDefinition, error) {
+func (s *Service) ListAttributesByCategory(ctx context.Context, categoryID int64) ([]models.ListCategoryAttributesRow, error) {
 	return s.db.ListCategoryAttributes(ctx, categoryID)
 }

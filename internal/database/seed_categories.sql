@@ -85,8 +85,13 @@ INSERT INTO attribute_definition (name) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- Phones
-INSERT INTO category_attribute (category_id, attribute_id)
-SELECT c.category_id, a.attribute_id
+INSERT INTO category_attribute (category_id, attribute_id, is_required)
+SELECT c.category_id, a.attribute_id,
+       a.name IN (
+         'RAM', 'Storage', 'CPU',
+         'Screen Size', 'Battery Capacity',
+         'Operating System'
+       )
 FROM category_definition c, attribute_definition a
 WHERE c.name = 'Phones'
   AND a.name IN (
@@ -98,8 +103,12 @@ WHERE c.name = 'Phones'
 ON CONFLICT DO NOTHING;
 
 -- Laptops
-INSERT INTO category_attribute (category_id, attribute_id)
-SELECT c.category_id, a.attribute_id
+INSERT INTO category_attribute (category_id, attribute_id, is_required)
+SELECT c.category_id, a.attribute_id,
+       a.name IN (
+         'RAM', 'Storage', 'CPU',
+         'Screen Size', 'Operating System'
+       )
 FROM category_definition c, attribute_definition a
 WHERE c.name = 'Laptops'
   AND a.name IN (
@@ -110,30 +119,42 @@ WHERE c.name = 'Laptops'
 ON CONFLICT DO NOTHING;
 
 -- Clothing
-INSERT INTO category_attribute (category_id, attribute_id)
-SELECT c.category_id, a.attribute_id
+INSERT INTO category_attribute (category_id, attribute_id, is_required)
+SELECT c.category_id, a.attribute_id,
+       a.name IN (
+         'Size', 'Color',
+         'Fabric', 'Gender'
+       )
 FROM category_definition c, attribute_definition a
 WHERE c.name IN ('Men Clothing', 'Women Clothing')
   AND a.name IN (
     'Size', 'Color',
-    'Fabric', 'Fit', 'Gender', 'Season'
+    'Fabric', 'Fit',
+    'Gender', 'Season'
 )
 ON CONFLICT DO NOTHING;
 
---Shoes
-INSERT INTO category_attribute (category_id, attribute_id)
-SELECT c.category_id, a.attribute_id
+-- Shoes
+INSERT INTO category_attribute (category_id, attribute_id, is_required)
+SELECT c.category_id, a.attribute_id,
+       a.name IN (
+         'Shoe Size', 'Color', 'Gender'
+       )
 FROM category_definition c, attribute_definition a
 WHERE c.name = 'Shoes'
   AND a.name IN (
     'Shoe Size', 'Color',
-    'Material', 'Gender', 'Heel Height'
+    'Material', 'Gender',
+    'Heel Height'
 )
 ON CONFLICT DO NOTHING;
 
 -- Home Appliances
-INSERT INTO category_attribute (category_id, attribute_id)
-SELECT c.category_id, a.attribute_id
+INSERT INTO category_attribute (category_id, attribute_id, is_required)
+SELECT c.category_id, a.attribute_id,
+       a.name IN (
+         'Power Consumption', 'Voltage'
+       )
 FROM category_definition c, attribute_definition a
 WHERE c.name = 'Home Appliances'
   AND a.name IN (
@@ -143,8 +164,11 @@ WHERE c.name = 'Home Appliances'
 ON CONFLICT DO NOTHING;
 
 -- Books
-INSERT INTO category_attribute (category_id, attribute_id)
-SELECT c.category_id, a.attribute_id
+INSERT INTO category_attribute (category_id, attribute_id, is_required)
+SELECT c.category_id, a.attribute_id,
+       a.name IN (
+         'Author', 'Language', 'ISBN'
+       )
 FROM category_definition c, attribute_definition a
 WHERE c.name = 'Books'
   AND a.name IN (

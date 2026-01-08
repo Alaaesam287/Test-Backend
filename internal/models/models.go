@@ -54,6 +54,7 @@ type CartItem struct {
 type CategoryAttribute struct {
 	CategoryID  int64
 	AttributeID int64
+	IsRequired  bool
 }
 
 type CategoryDefinition struct {

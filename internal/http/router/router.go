@@ -52,6 +52,17 @@ func SetupRouter(
 	)
 	cartGroup.GET("", cartHandler.GetCart)
 
+	// Store owner dashboard routes
+	dashboard := auth.Group("/dashboard/stores/:store_id")
+	dashboard.Use(
+		middleware.RequireRole("store_owner"),
+		middleware.RequireStoreOwner(storeOwnerChecker),
+	)
+	{
+		dashboard.POST("/products", productHandler.CreateProduct)
+		dashboard.POST("/products/:product_id/variants", productHandler.AddVariant)
+	}
+
 	// Admin-only routes
 	admin := r.Group("/admin")
 	admin.Use(middleware.RequireRole("admin"))

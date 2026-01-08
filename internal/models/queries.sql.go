@@ -14,6 +14,25 @@ import (
 	"github.com/google/uuid"
 )
 
+const categoryHasAttribute = `-- name: CategoryHasAttribute :one
+SELECT 1
+FROM category_attribute
+WHERE category_id = $1
+  AND attribute_id = $2
+`
+
+type CategoryHasAttributeParams struct {
+	CategoryID  int64
+	AttributeID int64
+}
+
+func (q *Queries) CategoryHasAttribute(ctx context.Context, arg CategoryHasAttributeParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, categoryHasAttribute, arg.CategoryID, arg.AttributeID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createCustomer = `-- name: CreateCustomer :one
 INSERT INTO customer (
   store_id,
@@ -65,8 +84,52 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 	return i, err
 }
 
+const createProduct = `-- name: CreateProduct :one
+INSERT INTO product (
+  store_id, category_id, name, slug, description, brand
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING product_id, store_id, category_id, name, slug, description, brand, stock_quantity, created_at, updated_at, in_stock, deleted_at, default_variant_id
+`
+
+type CreateProductParams struct {
+	StoreID     int64
+	CategoryID  int64
+	Name        string
+	Slug        sql.NullString
+	Description sql.NullString
+	Brand       sql.NullString
+}
+
+func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
+	row := q.db.QueryRowContext(ctx, createProduct,
+		arg.StoreID,
+		arg.CategoryID,
+		arg.Name,
+		arg.Slug,
+		arg.Description,
+		arg.Brand,
+	)
+	var i Product
+	err := row.Scan(
+		&i.ProductID,
+		&i.StoreID,
+		&i.CategoryID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Brand,
+		&i.StockQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InStock,
+		&i.DeletedAt,
+		&i.DefaultVariantID,
+	)
+	return i, err
+}
 // #nosec G101
-const createRefreshToken = `-- name: CreateRefreshToken :exec 
+const createRefreshToken = `-- name: CreateRefreshToken :exec
 INSERT INTO refresh_token (token, user_id, user_role, store_id, expires_at)
 VALUES ($1, $2, $3, $4, $5)
 `
@@ -132,6 +195,52 @@ func (q *Queries) CreateStoreOwner(ctx context.Context, arg CreateStoreOwnerPara
 		&i.Name,
 		&i.Email,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createVariant = `-- name: CreateVariant :one
+INSERT INTO product_variant (
+  product_id, store_id, attribute_hash,
+  sku, price, stock_quantity, primary_image_url
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING variant_id, product_id, store_id, attribute_hash, sku, price, stock_quantity, primary_image_url, created_at, updated_at, deleted_at
+`
+
+type CreateVariantParams struct {
+	ProductID       int64
+	StoreID         int64
+	AttributeHash   string
+	Sku             string
+	Price           string
+	StockQuantity   int32
+	PrimaryImageUrl string
+}
+
+func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) (ProductVariant, error) {
+	row := q.db.QueryRowContext(ctx, createVariant,
+		arg.ProductID,
+		arg.StoreID,
+		arg.AttributeHash,
+		arg.Sku,
+		arg.Price,
+		arg.StockQuantity,
+		arg.PrimaryImageUrl,
+	)
+	var i ProductVariant
+	err := row.Scan(
+		&i.VariantID,
+		&i.ProductID,
+		&i.StoreID,
+		&i.AttributeHash,
+		&i.Sku,
+		&i.Price,
+		&i.StockQuantity,
+		&i.PrimaryImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -351,6 +460,109 @@ func (q *Queries) GetProductBase(ctx context.Context, arg GetProductBaseParams) 
 	return i, err
 }
 
+const getProductByIdentity = `-- name: GetProductByIdentity :one
+SELECT product_id, store_id, category_id, name, slug, description, brand, stock_quantity, created_at, updated_at, in_stock, deleted_at, default_variant_id
+FROM product
+WHERE store_id = $1
+  AND name = $2
+  AND category_id = $3
+  AND brand = $4
+  AND deleted_at IS NULL
+LIMIT 1
+`
+
+type GetProductByIdentityParams struct {
+	StoreID    int64
+	Name       string
+	CategoryID int64
+	Brand      sql.NullString
+}
+
+func (q *Queries) GetProductByIdentity(ctx context.Context, arg GetProductByIdentityParams) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProductByIdentity,
+		arg.StoreID,
+		arg.Name,
+		arg.CategoryID,
+		arg.Brand,
+	)
+	var i Product
+	err := row.Scan(
+		&i.ProductID,
+		&i.StoreID,
+		&i.CategoryID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Brand,
+		&i.StockQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InStock,
+		&i.DeletedAt,
+		&i.DefaultVariantID,
+	)
+	return i, err
+}
+
+const getProductByStoreAndName = `-- name: GetProductByStoreAndName :one
+SELECT product_id, store_id, category_id, name, slug, description, brand, stock_quantity, created_at, updated_at, in_stock, deleted_at, default_variant_id
+FROM product
+WHERE store_id = $1 AND name = $2 AND deleted_at IS NULL
+LIMIT 1
+`
+
+type GetProductByStoreAndNameParams struct {
+	StoreID int64
+	Name    string
+}
+
+func (q *Queries) GetProductByStoreAndName(ctx context.Context, arg GetProductByStoreAndNameParams) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProductByStoreAndName, arg.StoreID, arg.Name)
+	var i Product
+	err := row.Scan(
+		&i.ProductID,
+		&i.StoreID,
+		&i.CategoryID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Brand,
+		&i.StockQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InStock,
+		&i.DeletedAt,
+		&i.DefaultVariantID,
+	)
+	return i, err
+}
+
+const getProductForUpdate = `-- name: GetProductForUpdate :one
+SELECT product_id, store_id, category_id, stock_quantity
+FROM product
+WHERE product_id = $1
+FOR UPDATE
+`
+
+type GetProductForUpdateRow struct {
+	ProductID     int64
+	StoreID       int64
+	CategoryID    int64
+	StockQuantity int32
+}
+
+func (q *Queries) GetProductForUpdate(ctx context.Context, productID int64) (GetProductForUpdateRow, error) {
+	row := q.db.QueryRowContext(ctx, getProductForUpdate, productID)
+	var i GetProductForUpdateRow
+	err := row.Scan(
+		&i.ProductID,
+		&i.StoreID,
+		&i.CategoryID,
+		&i.StockQuantity,
+	)
+	return i, err
+}
+
 const getProductVariantAttributes = `-- name: GetProductVariantAttributes :many
 SELECT
   ad.attribute_id,
@@ -441,9 +653,8 @@ func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]Ge
 	}
 	return items, nil
 }
-
 // #nosec G101
-const getRefreshToken = `-- name: GetRefreshToken :one 
+const getRefreshToken = `-- name: GetRefreshToken :one
 SELECT refresh_token_id, token, user_id, user_role, store_id, expires_at, revoked, created_at
 FROM refresh_token
 WHERE token = $1 AND revoked = FALSE
@@ -584,6 +795,74 @@ func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProduc
 	return items, nil
 }
 
+const getVariantByAttributeHash = `-- name: GetVariantByAttributeHash :one
+SELECT variant_id, product_id, store_id, attribute_hash, sku, price, stock_quantity, primary_image_url, created_at, updated_at, deleted_at
+FROM product_variant
+WHERE product_id = $1
+  AND attribute_hash = $2
+  AND deleted_at IS NULL
+LIMIT 1
+`
+
+type GetVariantByAttributeHashParams struct {
+	ProductID     int64
+	AttributeHash string
+}
+
+func (q *Queries) GetVariantByAttributeHash(ctx context.Context, arg GetVariantByAttributeHashParams) (ProductVariant, error) {
+	row := q.db.QueryRowContext(ctx, getVariantByAttributeHash, arg.ProductID, arg.AttributeHash)
+	var i ProductVariant
+	err := row.Scan(
+		&i.VariantID,
+		&i.ProductID,
+		&i.StoreID,
+		&i.AttributeHash,
+		&i.Sku,
+		&i.Price,
+		&i.StockQuantity,
+		&i.PrimaryImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const increaseVariantStock = `-- name: IncreaseVariantStock :exec
+UPDATE product_variant
+SET stock_quantity = stock_quantity + $2,
+    updated_at = NOW()
+WHERE variant_id = $1
+`
+
+type IncreaseVariantStockParams struct {
+	VariantID     int64
+	StockQuantity int32
+}
+
+func (q *Queries) IncreaseVariantStock(ctx context.Context, arg IncreaseVariantStockParams) error {
+	_, err := q.db.ExecContext(ctx, increaseVariantStock, arg.VariantID, arg.StockQuantity)
+	return err
+}
+
+const insertVariantAttribute = `-- name: InsertVariantAttribute :exec
+INSERT INTO variant_attribute_value (
+  variant_id, attribute_id, value
+)
+VALUES ($1, $2, $3)
+`
+
+type InsertVariantAttributeParams struct {
+	VariantID   int64
+	AttributeID int64
+	Value       string
+}
+
+func (q *Queries) InsertVariantAttribute(ctx context.Context, arg InsertVariantAttributeParams) error {
+	_, err := q.db.ExecContext(ctx, insertVariantAttribute, arg.VariantID, arg.AttributeID, arg.Value)
+	return err
+}
+
 const isStoreOwner = `-- name: IsStoreOwner :one
 SELECT EXISTS (
     SELECT 1
@@ -646,23 +925,29 @@ func (q *Queries) ListCategoriesByStore(ctx context.Context, storeID int64) ([]L
 }
 
 const listCategoryAttributes = `-- name: ListCategoryAttributes :many
-SELECT a.attribute_id, a.name
+SELECT a.attribute_id, a.name, ca.is_required
 FROM category_attribute ca
 JOIN attribute_definition a 
 ON a.attribute_id = ca.attribute_id
 WHERE ca.category_id = $1
 `
 
-func (q *Queries) ListCategoryAttributes(ctx context.Context, categoryID int64) ([]AttributeDefinition, error) {
+type ListCategoryAttributesRow struct {
+	AttributeID int64
+	Name        string
+	IsRequired  bool
+}
+
+func (q *Queries) ListCategoryAttributes(ctx context.Context, categoryID int64) ([]ListCategoryAttributesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCategoryAttributes, categoryID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AttributeDefinition
+	var items []ListCategoryAttributesRow
 	for rows.Next() {
-		var i AttributeDefinition
-		if err := rows.Scan(&i.AttributeID, &i.Name); err != nil {
+		var i ListCategoryAttributesRow
+		if err := rows.Scan(&i.AttributeID, &i.Name, &i.IsRequired); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -710,9 +995,8 @@ func (q *Queries) ResolveCategoryIDByName(ctx context.Context, arg ResolveCatego
 	err := row.Scan(&category_id)
 	return category_id, err
 }
-
 // #nosec G101
-const revokeRefreshToken = `-- name: RevokeRefreshToken :exec  
+const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
 UPDATE refresh_token
 SET revoked = TRUE
 WHERE token = $1
@@ -720,5 +1004,39 @@ WHERE token = $1
 
 func (q *Queries) RevokeRefreshToken(ctx context.Context, token string) error {
 	_, err := q.db.ExecContext(ctx, revokeRefreshToken, token)
+	return err
+}
+
+const setDefaultVariant = `-- name: SetDefaultVariant :exec
+UPDATE product
+SET default_variant_id = $2
+WHERE product_id = $1
+`
+
+type SetDefaultVariantParams struct {
+	ProductID        int64
+	DefaultVariantID sql.NullInt64
+}
+
+func (q *Queries) SetDefaultVariant(ctx context.Context, arg SetDefaultVariantParams) error {
+	_, err := q.db.ExecContext(ctx, setDefaultVariant, arg.ProductID, arg.DefaultVariantID)
+	return err
+}
+
+const updateProductStock = `-- name: UpdateProductStock :exec
+UPDATE product
+SET stock_quantity = stock_quantity + $2,
+    in_stock = (stock_quantity + $2) > 0,
+    updated_at = NOW()
+WHERE product_id = $1
+`
+
+type UpdateProductStockParams struct {
+	ProductID     int64
+	StockQuantity int32
+}
+
+func (q *Queries) UpdateProductStock(ctx context.Context, arg UpdateProductStockParams) error {
+	_, err := q.db.ExecContext(ctx, updateProductStock, arg.ProductID, arg.StockQuantity)
 	return err
 }

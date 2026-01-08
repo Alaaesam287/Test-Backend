@@ -81,6 +81,13 @@ ORDER BY
   v.stock_quantity DESC
 LIMIT $3;
 
+-- name: GetProductForUpdate :one
+SELECT product_id, store_id, category_id, stock_quantity
+FROM product
+WHERE product_id = $1
+FOR UPDATE;
+
+
 -- name: ResolveAttributeIDByName :one
 SELECT attribute_id
 FROM attribute_definition
@@ -176,7 +183,7 @@ WHERE email = $1
   AND store_id = $2;
 
 -- name: ListCategoryAttributes :many
-SELECT a.attribute_id, a.name
+SELECT a.attribute_id, a.name, ca.is_required
 FROM category_attribute ca
 JOIN attribute_definition a 
 ON a.attribute_id = ca.attribute_id
@@ -200,3 +207,72 @@ WHERE token = $1 AND revoked = FALSE;
 UPDATE refresh_token
 SET revoked = TRUE
 WHERE token = $1;
+
+-- name: GetProductByStoreAndName :one
+SELECT *
+FROM product
+WHERE store_id = $1 AND name = $2 AND deleted_at IS NULL
+LIMIT 1;
+
+-- name: CreateProduct :one
+INSERT INTO product (
+  store_id, category_id, name, slug, description, brand
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: UpdateProductStock :exec
+UPDATE product
+SET stock_quantity = stock_quantity + $2,
+    in_stock = (stock_quantity + $2) > 0,
+    updated_at = NOW()
+WHERE product_id = $1;
+
+-- name: SetDefaultVariant :exec
+UPDATE product
+SET default_variant_id = $2
+WHERE product_id = $1;
+
+-- name: GetVariantByAttributeHash :one
+SELECT *
+FROM product_variant
+WHERE product_id = $1
+  AND attribute_hash = $2
+  AND deleted_at IS NULL
+LIMIT 1;
+
+-- name: CreateVariant :one
+INSERT INTO product_variant (
+  product_id, store_id, attribute_hash,
+  sku, price, stock_quantity, primary_image_url
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING *;
+
+-- name: IncreaseVariantStock :exec
+UPDATE product_variant
+SET stock_quantity = stock_quantity + $2,
+    updated_at = NOW()
+WHERE variant_id = $1;
+
+-- name: InsertVariantAttribute :exec
+INSERT INTO variant_attribute_value (
+  variant_id, attribute_id, value
+)
+VALUES ($1, $2, $3);
+
+-- name: GetProductByIdentity :one
+SELECT *
+FROM product
+WHERE store_id = $1
+  AND name = $2
+  AND category_id = $3
+  AND brand = $4
+  AND deleted_at IS NULL
+LIMIT 1;
+
+-- name: CategoryHasAttribute :one
+SELECT 1
+FROM category_attribute
+WHERE category_id = $1
+  AND attribute_id = $2;
