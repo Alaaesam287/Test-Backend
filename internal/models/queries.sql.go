@@ -202,20 +202,19 @@ func (q *Queries) CreateStoreOwner(ctx context.Context, arg CreateStoreOwnerPara
 const createVariant = `-- name: CreateVariant :one
 INSERT INTO product_variant (
   product_id, store_id, attribute_hash,
-  sku, price, stock_quantity, primary_image_url
+  sku, price, stock_quantity
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING variant_id, product_id, store_id, attribute_hash, sku, price, stock_quantity, primary_image_url, created_at, updated_at, deleted_at
 `
 
 type CreateVariantParams struct {
-	ProductID       int64
-	StoreID         int64
-	AttributeHash   string
-	Sku             string
-	Price           string
-	StockQuantity   int32
-	PrimaryImageUrl string
+	ProductID     int64
+	StoreID       int64
+	AttributeHash string
+	Sku           string
+	Price         string
+	StockQuantity int32
 }
 
 func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) (ProductVariant, error) {
@@ -226,7 +225,6 @@ func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) (P
 		arg.Sku,
 		arg.Price,
 		arg.StockQuantity,
-		arg.PrimaryImageUrl,
 	)
 	var i ProductVariant
 	err := row.Scan(
@@ -315,7 +313,7 @@ type GetCartItemsRow struct {
 	ProductID       int64
 	ProductName     string
 	Sku             string
-	PrimaryImageUrl string
+	PrimaryImageUrl sql.NullString
 	UnitPrice       string
 	Quantity        int32
 	Subtotal        string
@@ -436,7 +434,7 @@ type GetProductBaseRow struct {
 	DefaultVariantID sql.NullInt64
 	Price            string
 	InStock          bool
-	PrimaryImage     string
+	PrimaryImage     sql.NullString
 }
 
 func (q *Queries) GetProductBase(ctx context.Context, arg GetProductBaseParams) (GetProductBaseRow, error) {
@@ -621,7 +619,7 @@ type GetProductVariantsRow struct {
 	Sku             string
 	Price           string
 	StockQuantity   int32
-	PrimaryImageUrl string
+	PrimaryImageUrl sql.NullString
 }
 
 func (q *Queries) GetProductVariants(ctx context.Context, productID int64) ([]GetProductVariantsRow, error) {
@@ -755,7 +753,7 @@ type GetTopProductsByCategoryRow struct {
 	ItemStock         int32
 	Price             string
 	InStock           bool
-	PrimaryImage      string
+	PrimaryImage      sql.NullString
 }
 
 func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProductsByCategoryParams) ([]GetTopProductsByCategoryRow, error) {
@@ -793,6 +791,32 @@ func (q *Queries) GetTopProductsByCategory(ctx context.Context, arg GetTopProduc
 		return nil, err
 	}
 	return items, nil
+}
+
+const getVariant = `-- name: GetVariant :one
+SELECT variant_id, product_id, store_id, attribute_hash, sku, price, stock_quantity, primary_image_url, created_at, updated_at, deleted_at
+FROM product_variant
+WHERE variant_id = $1
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) GetVariant(ctx context.Context, variantID int64) (ProductVariant, error) {
+	row := q.db.QueryRowContext(ctx, getVariant, variantID)
+	var i ProductVariant
+	err := row.Scan(
+		&i.VariantID,
+		&i.ProductID,
+		&i.StoreID,
+		&i.AttributeHash,
+		&i.Sku,
+		&i.Price,
+		&i.StockQuantity,
+		&i.PrimaryImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const getVariantByAttributeHash = `-- name: GetVariantByAttributeHash :one
@@ -861,6 +885,29 @@ type InsertVariantAttributeParams struct {
 func (q *Queries) InsertVariantAttribute(ctx context.Context, arg InsertVariantAttributeParams) error {
 	_, err := q.db.ExecContext(ctx, insertVariantAttribute, arg.VariantID, arg.AttributeID, arg.Value)
 	return err
+}
+
+const insertVariantImage = `-- name: InsertVariantImage :one
+INSERT INTO product_variant_image (product_variant_id, image_url)
+VALUES ($1, $2)
+RETURNING image_id, product_variant_id, image_url, created_at
+`
+
+type InsertVariantImageParams struct {
+	ProductVariantID int64
+	ImageUrl         string
+}
+
+func (q *Queries) InsertVariantImage(ctx context.Context, arg InsertVariantImageParams) (ProductVariantImage, error) {
+	row := q.db.QueryRowContext(ctx, insertVariantImage, arg.ProductVariantID, arg.ImageUrl)
+	var i ProductVariantImage
+	err := row.Scan(
+		&i.ImageID,
+		&i.ProductVariantID,
+		&i.ImageUrl,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const isStoreOwner = `-- name: IsStoreOwner :one
@@ -1020,6 +1067,22 @@ type SetDefaultVariantParams struct {
 
 func (q *Queries) SetDefaultVariant(ctx context.Context, arg SetDefaultVariantParams) error {
 	_, err := q.db.ExecContext(ctx, setDefaultVariant, arg.ProductID, arg.DefaultVariantID)
+	return err
+}
+
+const setPrimaryVariantImage = `-- name: SetPrimaryVariantImage :exec
+UPDATE product_variant
+SET primary_image_url = $2
+WHERE variant_id = $1
+`
+
+type SetPrimaryVariantImageParams struct {
+	VariantID       int64
+	PrimaryImageUrl sql.NullString
+}
+
+func (q *Queries) SetPrimaryVariantImage(ctx context.Context, arg SetPrimaryVariantImageParams) error {
+	_, err := q.db.ExecContext(ctx, setPrimaryVariantImage, arg.VariantID, arg.PrimaryImageUrl)
 	return err
 }
 

@@ -241,12 +241,18 @@ WHERE product_id = $1
   AND deleted_at IS NULL
 LIMIT 1;
 
+-- name: GetVariant :one
+SELECT *
+FROM product_variant
+WHERE variant_id = $1
+  AND deleted_at IS NULL;
+
 -- name: CreateVariant :one
 INSERT INTO product_variant (
   product_id, store_id, attribute_hash,
-  sku, price, stock_quantity, primary_image_url
+  sku, price, stock_quantity
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: IncreaseVariantStock :exec
@@ -276,3 +282,13 @@ SELECT 1
 FROM category_attribute
 WHERE category_id = $1
   AND attribute_id = $2;
+
+-- name: SetPrimaryVariantImage :exec
+UPDATE product_variant
+SET primary_image_url = $2
+WHERE variant_id = $1;
+
+-- name: InsertVariantImage :one
+INSERT INTO product_variant_image (product_variant_id, image_url)
+VALUES ($1, $2)
+RETURNING *;
