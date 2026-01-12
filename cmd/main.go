@@ -18,6 +18,7 @@ import (
 	"github.com/Secure-Website-Builder/Backend/internal/services/category"
 	"github.com/Secure-Website-Builder/Backend/internal/services/product"
 	"github.com/Secure-Website-Builder/Backend/internal/services/store"
+	"github.com/Secure-Website-Builder/Backend/internal/storage"
 )
 
 func main() {
@@ -52,9 +53,23 @@ func main() {
 	// sqlc generated queries
 	queries := models.New(db)
 
+	// storage
+	storage, err := storage.NewMinIOStorage(
+		cfg.MinIOEndpoint,
+		cfg.MinIOUser,
+		cfg.MinIOPass,
+		cfg.MinIOBucket,
+		false,
+	)
+
+	if err != nil {
+		log.Fatalf("failed to initialize image storage: %v", err)
+	}
+
+
 	// Services
 	categoryService := category.NewService(queries)
-	productService := product.New(queries, db)
+	productService := product.New(queries, db, storage)
 	cartService := cart.New(queries)
 	storeService := store.New(queries)
 	authService := auth.New(queries, cfg.JWTSecret)
