@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -98,4 +99,11 @@ func InterfaceSlice[T any](s []T) []interface{} {
 		out[i] = s[i]
 	}
 	return out
+}
+
+func NullStringToPtr(ns sql.NullString) *string {
+    if ns.Valid {
+        return &ns.String
+    }
+    return nil
 }
