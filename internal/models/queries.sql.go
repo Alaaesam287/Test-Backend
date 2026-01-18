@@ -153,6 +153,47 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 	return err
 }
 
+const createStore = `-- name: CreateStore :one
+INSERT INTO store (
+    store_owner_id,
+    name,
+    domain,
+    currency,
+    timezone
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING store_id, store_owner_id, name, domain, currency, timezone, created_at, updated_at
+`
+
+type CreateStoreParams struct {
+	StoreOwnerID int64
+	Name         string
+	Domain       sql.NullString
+	Currency     sql.NullString
+	Timezone     sql.NullString
+}
+
+func (q *Queries) CreateStore(ctx context.Context, arg CreateStoreParams) (Store, error) {
+	row := q.db.QueryRowContext(ctx, createStore,
+		arg.StoreOwnerID,
+		arg.Name,
+		arg.Domain,
+		arg.Currency,
+		arg.Timezone,
+	)
+	var i Store
+	err := row.Scan(
+		&i.StoreID,
+		&i.StoreOwnerID,
+		&i.Name,
+		&i.Domain,
+		&i.Currency,
+		&i.Timezone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createStoreOwner = `-- name: CreateStoreOwner :one
 INSERT INTO store_owner (
   name,
@@ -241,6 +282,16 @@ func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) (P
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const deleteStore = `-- name: DeleteStore :exec
+DELETE FROM store
+WHERE store_id = $1
+`
+
+func (q *Queries) DeleteStore(ctx context.Context, storeID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteStore, storeID)
+	return err
 }
 
 const getAdminByEmail = `-- name: GetAdminByEmail :one
@@ -670,6 +721,28 @@ func (q *Queries) GetRefreshToken(ctx context.Context, token string) (RefreshTok
 		&i.ExpiresAt,
 		&i.Revoked,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getStore = `-- name: GetStore :one
+SELECT store_id, store_owner_id, name, domain, currency, timezone, created_at, updated_at
+FROM store
+WHERE store_id = $1
+`
+
+func (q *Queries) GetStore(ctx context.Context, storeID int64) (Store, error) {
+	row := q.db.QueryRowContext(ctx, getStore, storeID)
+	var i Store
+	err := row.Scan(
+		&i.StoreID,
+		&i.StoreOwnerID,
+		&i.Name,
+		&i.Domain,
+		&i.Currency,
+		&i.Timezone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

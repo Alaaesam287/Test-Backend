@@ -292,3 +292,23 @@ WHERE variant_id = $1;
 INSERT INTO product_variant_image (product_variant_id, image_url)
 VALUES ($1, $2)
 RETURNING *;
+
+-- name: CreateStore :one
+INSERT INTO store (
+    store_owner_id,
+    name,
+    domain,
+    currency,
+    timezone
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: DeleteStore :exec
+DELETE FROM store
+WHERE store_id = $1;
+
+
+-- name: GetStore :one
+SELECT *
+FROM store
+WHERE store_id = $1;
