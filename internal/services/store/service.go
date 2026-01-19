@@ -10,6 +10,7 @@ import (
 
 	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/Secure-Website-Builder/Backend/internal/storage"
+	"github.com/Secure-Website-Builder/Backend/internal/utils"
 )
 
 type Service struct {
@@ -93,4 +94,26 @@ func (s *Service) CreateStore(
 	}
 
 	return store.StoreID, nil
+}
+
+func (s *Service) GetStore(
+	ctx context.Context,
+	storeID int64,
+) (*models.StoreDTO, error) {
+
+	store, err := s.q.GetStore(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.StoreDTO{
+		StoreID:      store.StoreID,
+		StoreOwnerID: store.StoreOwnerID,
+		Name:         store.Name,
+		Domain:       utils.NullStringToPtr(store.Domain),
+		Currency:     utils.NullStringToPtr(store.Currency),
+		Timezone:     utils.NullStringToPtr(store.Timezone),
+		CreatedAt:    store.CreatedAt,
+		UpdatedAt:    store.UpdatedAt,
+	}, nil
 }

@@ -2,6 +2,7 @@ package models
 
 import (
 	"database/sql"
+	"time"
 )
 
 type ProductFullDetailsDTO struct {
@@ -90,4 +91,15 @@ type CreateProductInput struct {
 	Description string       `json:"description"`
 	Brand       string       `json:"brand"`
 	Variant     VariantInput `json:"variant"`
+}
+
+type StoreDTO struct {
+	StoreID      int64     `json:"store_id"`
+	StoreOwnerID int64     `json:"store_owner_id"`
+	Name         string    `json:"name"`
+	Domain       *string   `json:"domain,omitempty"`
+	Currency     *string   `json:"currency,omitempty"`
+	Timezone     *string   `json:"timezone,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }

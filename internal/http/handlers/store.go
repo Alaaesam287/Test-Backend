@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/Secure-Website-Builder/Backend/internal/services/store"
 	"github.com/gin-gonic/gin"
@@ -53,4 +54,29 @@ func (h *StoreHandler) CreateStore(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"store_id": storeID,
 	})
+}
+
+func (h *StoreHandler) GetStore(c *gin.Context) {
+
+	storeID, err := strconv.ParseInt(c.Param("store_id"), 10, 64)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "invalid store_id",
+		})
+		return
+	}
+
+	store, err := h.Service.GetStore(
+		c.Request.Context(),
+		storeID,
+	)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+			"error": "store not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, store)
 }

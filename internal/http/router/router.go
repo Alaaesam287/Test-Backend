@@ -46,6 +46,7 @@ func SetupRouter(
 			middleware.RequireStoreOwner(storeOwnerChecker),
 		)
 
+		storeRoutes.GET("", storeHandler.GetStore)
 		storeRoutes.GET("/categories", categoryHandler.ListCategories)
 		storeRoutes.GET("/categories/:category_id/attributes", categoryHandler.ListAttributes)
 		storeRoutes.GET("/categories/:category_id/top-products", categoryProductHandler.GetTopProducts)

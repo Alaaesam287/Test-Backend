@@ -19,8 +19,8 @@ CREATE TABLE store (
   domain          VARCHAR(255) UNIQUE,
   currency        VARCHAR(10) DEFAULT 'EGP',
   timezone        VARCHAR(100) DEFAULT 'UTC',
-  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- ===============================
