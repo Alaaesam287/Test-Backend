@@ -70,7 +70,7 @@ func main() {
 	categoryService := category.NewService(queries)
 	productService := product.New(queries, db, storage)
 	cartService := cart.New(queries)
-	storeService := store.New(queries)
+	storeService := store.New(db, queries, storage)
 	authService := auth.New(queries, cfg.JWTSecret)
 
 	// Middleware helpers
@@ -82,6 +82,7 @@ func main() {
 	categoryProductHandler := handlers.NewCategoryProductHandler(productService)
 	cartHandler := handlers.NewCartHandler(cartService)
 	authHandler := handlers.NewAuthHandler(authService)
+	storeHandler := handlers.NewStoreHandler(storeService)
 
 	// Router
 	r := router.SetupRouter(
@@ -90,6 +91,7 @@ func main() {
 		categoryProductHandler,
 		cartHandler,
 		authHandler,
+		storeHandler,
 		storeOwnerChecker,
 		cfg.JWTSecret,
 	)

@@ -12,6 +12,7 @@ func SetupRouter(
 	categoryProductHandler *handlers.CategoryProductHandler,
 	cartHandler *handlers.CartHandler,
 	authHandler *handlers.AuthHandler,
+	storeHandler *handlers.StoreHandler,
 	storeOwnerChecker *middleware.StoreOwnerChecker,
 	jwtSecret string,
 ) *gin.Engine {
@@ -28,20 +29,28 @@ func SetupRouter(
 	auth := r.Group("/")
 	auth.Use(middleware.JWTAuth(jwtSecret))
 
-	stores := auth.Group("/stores/:store_id")
+	// Create store (store owner only)
+	stores := auth.Group("/stores")
+	stores.Use(middleware.RequireRole("store_owner"))
+	{
+		stores.POST("", storeHandler.CreateStore)
+	}
+
+	// Public / customer-facing store routes
+	storeRoutes := auth.Group("/stores/:store_id")
 	{
 		// Shared middlewares for customer/store_owner/admin
-		stores.Use(
+		storeRoutes.Use(
 			middleware.RequireRole("customer", "store_owner", "admin"),
 			middleware.RequireSameStore(),
 			middleware.RequireStoreOwner(storeOwnerChecker),
 		)
 
-		stores.GET("/categories", categoryHandler.ListCategories)
-		stores.GET("/categories/:category_id/attributes", categoryHandler.ListAttributes)
-		stores.GET("/categories/:category_id/top-products", categoryProductHandler.GetTopProducts)
-		stores.GET("/products", productHandler.ListProducts)
-		stores.GET("/products/:product_id", productHandler.GetProduct)
+		storeRoutes.GET("/categories", categoryHandler.ListCategories)
+		storeRoutes.GET("/categories/:category_id/attributes", categoryHandler.ListAttributes)
+		storeRoutes.GET("/categories/:category_id/top-products", categoryProductHandler.GetTopProducts)
+		storeRoutes.GET("/products", productHandler.ListProducts)
+		storeRoutes.GET("/products/:product_id", productHandler.GetProduct)
 	}
 
 	// Cart endpoints

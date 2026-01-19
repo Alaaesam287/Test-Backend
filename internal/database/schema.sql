@@ -17,7 +17,7 @@ CREATE TABLE store (
   store_owner_id  BIGINT UNIQUE NOT NULL REFERENCES store_owner(store_owner_id),
   name            VARCHAR(255) NOT NULL,
   domain          VARCHAR(255) UNIQUE,
-  currency        VARCHAR(10) DEFAULT 'USD',
+  currency        VARCHAR(10) DEFAULT 'EGP',
   timezone        VARCHAR(100) DEFAULT 'UTC',
   created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
