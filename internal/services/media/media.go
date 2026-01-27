@@ -14,6 +14,12 @@ type Service struct {
 	storage storage.ObjectStorage
 }
 
+func New(storage storage.ObjectStorage) *Service {
+	return &Service{
+		storage: storage,
+	}
+}
+
 const MaxImageSize = 5 * 1024 * 1024
 
 // UploadImage validates and uploads an image. Always returns URL and MIME.
@@ -48,11 +54,9 @@ var allowedMIMEs = map[string]bool{
 // ValidateImage checks the image's size and type before upload.
 func ValidateImage(r io.Reader) (io.Reader, string, error) {
 
-	limited := io.LimitReader(r, MaxImageSize+1)
-
 	header := make([]byte, 512)
-	n, err := limited.Read(header)
-	if err != nil && err != io.EOF {
+	n, err := io.ReadFull(r,header)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 		return nil, "", fmt.Errorf("reading image header: %w", err)
 	}
 
@@ -61,7 +65,7 @@ func ValidateImage(r io.Reader) (io.Reader, string, error) {
 		return nil, "", fmt.Errorf("unsupported image type: %s", mime)
 	}
 
-	validatedReader := io.MultiReader(bytes.NewReader(header[:n]), limited)
+	validatedReader := io.MultiReader(bytes.NewReader(header[:n]), r)
 
 	// Wrap with size-checking reader
 	sizeChecker := &sizeLimitedReader{
@@ -74,7 +78,7 @@ func ValidateImage(r io.Reader) (io.Reader, string, error) {
 
 type sizeLimitedReader struct {
 	R io.Reader
-	N int64 // remaining bytes
+	N int64 
 }
 
 func (s *sizeLimitedReader) Read(p []byte) (int, error) {

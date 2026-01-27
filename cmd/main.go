@@ -16,6 +16,7 @@ import (
 	"github.com/Secure-Website-Builder/Backend/internal/services/auth"
 	"github.com/Secure-Website-Builder/Backend/internal/services/cart"
 	"github.com/Secure-Website-Builder/Backend/internal/services/category"
+	"github.com/Secure-Website-Builder/Backend/internal/services/media"
 	"github.com/Secure-Website-Builder/Backend/internal/services/product"
 	"github.com/Secure-Website-Builder/Backend/internal/services/store"
 	"github.com/Secure-Website-Builder/Backend/internal/storage"
@@ -67,8 +68,9 @@ func main() {
 	}
 
 	// Services
+	mediaService := media.New(storage)
 	categoryService := category.NewService(queries)
-	productService := product.New(queries, db, storage)
+	productService := product.New(queries, db, storage, mediaService)
 	cartService := cart.New(queries)
 	storeService := store.New(db, queries, storage)
 	authService := auth.New(queries, cfg.JWTSecret)
