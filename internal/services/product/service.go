@@ -252,142 +252,31 @@ func (s *Service) CreateProduct(
 
 	qtx := s.q.WithTx(tx)
 
-	// 1. Fetch category attributes once
-	categoryAttrs, err := qtx.ListCategoryAttributes(ctx, in.CategoryID)
-	if err != nil {
+	// 2. Validate attributes in request against preset category attributes
+	if err := validateVariantAttributes(ctx, qtx, in.CategoryID, in.Variant.Attributes); err != nil {
 		return nil, nil, err
 	}
 
-	allowed := make(map[int64]bool)
-	required := make(map[int64]bool)
-
-	for _, a := range categoryAttrs {
-		allowed[a.AttributeID] = true
-		if a.IsRequired {
-			required[a.AttributeID] = true
-		}
-	}
-
-	// 2. Validate input attributes
-	for _, attr := range in.Variant.Attributes {
-		if !allowed[attr.AttributeID] {
-			return nil, nil, fmt.Errorf(
-				"attribute %d is not allowed for category %d",
-				attr.AttributeID, in.CategoryID,
-			)
-		}
-		delete(required, attr.AttributeID)
-	}
-
-	if len(required) > 0 {
-		return nil, nil, fmt.Errorf("missing required category attributes")
-	}
-
-	// 3. Try to find existing product
-	product, err := qtx.GetProductByIdentity(ctx, models.GetProductByIdentityParams{
-		StoreID:    storeID,
-		Name:       in.Name,
-		CategoryID: in.CategoryID,
-		Brand:      sql.NullString{String: in.Brand, Valid: in.Brand != ""},
-	})
-
-	productExists := err == nil
-	productWasOutOfStock := !productExists || product.StockQuantity == 0
-
-	// 4. Create product if it does NOT exist
-	if !productExists {
-		product, err = qtx.CreateProduct(ctx, models.CreateProductParams{
-			StoreID:     storeID,
-			CategoryID:  in.CategoryID,
-			Name:        in.Name,
-			Slug:        sql.NullString{String: in.Slug, Valid: in.Slug != ""},
-			Description: sql.NullString{String: in.Description, Valid: in.Description != ""},
-			Brand:       sql.NullString{String: in.Brand, Valid: in.Brand != ""},
-		})
-		if err != nil {
-			return nil, nil, err
-		}
+	// 3. Find or create product
+	product, productWasOutOfStock, err := findOrCreateProduct(ctx,qtx,storeID,in,)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// 5. Compute attribute hash
 	hash := utils.HashAttributes(in.Variant.Attributes)
 
-	var finalVariant models.ProductVariant
-	var createdNewVariant bool
-
-	// 6. Variant handling
-	if productExists {
-		existingVariant, err := qtx.GetVariantByAttributeHash(ctx, models.GetVariantByAttributeHashParams{
-			ProductID:     product.ProductID,
-			AttributeHash: hash,
-		})
-
-		if err == nil {
-			// Variant exists → increase stock
-			err = qtx.IncreaseVariantStock(ctx, models.IncreaseVariantStockParams{
-				VariantID:     existingVariant.VariantID,
-				StockQuantity: in.Variant.Stock,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-
-			finalVariant = existingVariant
-		} else {
-			// Create new variant
-			newVariant, err := qtx.CreateVariant(ctx, models.CreateVariantParams{
-				ProductID:     product.ProductID,
-				StoreID:       storeID,
-				AttributeHash: hash,
-				Sku:           in.Variant.SKU,
-				Price:         fmt.Sprintf("%f", in.Variant.Price),
-				StockQuantity: in.Variant.Stock,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-
-			for _, a := range in.Variant.Attributes {
-				err = qtx.InsertVariantAttribute(ctx, models.InsertVariantAttributeParams{
-					VariantID:   newVariant.VariantID,
-					AttributeID: a.AttributeID,
-					Value:       a.Value,
-				})
-				if err != nil {
-					return nil, nil, err
-				}
-			}
-
-			finalVariant = newVariant
-			createdNewVariant = true
-		}
-	} else {
-		// New product → always create variant
-		newVariant, err := qtx.CreateVariant(ctx, models.CreateVariantParams{
-			ProductID:     product.ProductID,
-			StoreID:       storeID,
-			AttributeHash: hash,
-			Sku:           in.Variant.SKU,
-			Price:         fmt.Sprintf("%f", in.Variant.Price),
-			StockQuantity: in.Variant.Stock,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		for _, a := range in.Variant.Attributes {
-			err = qtx.InsertVariantAttribute(ctx, models.InsertVariantAttributeParams{
-				VariantID:   newVariant.VariantID,
-				AttributeID: a.AttributeID,
-				Value:       a.Value,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
-		finalVariant = newVariant
-		createdNewVariant = true
+	// 6. Find or create variant
+	finalVariant, isNewVariant, err := findOrCreateVariant(
+		ctx,
+		qtx,
+		storeID,
+		product.ProductID,
+		hash,
+		in.Variant,
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var uploadedKey string
@@ -418,7 +307,7 @@ func (s *Service) CreateProduct(
 	}
 
 	// 7. Set default variant if product was previously not sellable
-	if productWasOutOfStock && createdNewVariant {
+	if productWasOutOfStock && isNewVariant {
 		err = qtx.SetDefaultVariant(ctx, models.SetDefaultVariantParams{
 			ProductID: product.ProductID,
 			DefaultVariantID: sql.NullInt64{
@@ -483,82 +372,17 @@ func (s *Service) AddVariant(
 
 	productWasOutOfStock := product.StockQuantity == 0
 
-	// 2. Validate attributes against category
-	categoryAttrs, err := qtx.ListCategoryAttributes(ctx, product.CategoryID)
-	if err != nil {
+	if err := validateVariantAttributes(ctx, qtx, product.CategoryID, in.Attributes); err != nil {
 		return nil, err
-	}
-
-	allowed := make(map[int64]bool)
-	required := make(map[int64]bool)
-
-	for _, a := range categoryAttrs {
-		allowed[a.AttributeID] = true
-		if a.IsRequired {
-			required[a.AttributeID] = true
-		}
-	}
-
-	for _, attr := range in.Attributes {
-		if !allowed[attr.AttributeID] {
-			return nil, fmt.Errorf(
-				"attribute %d is not allowed for category %d",
-				attr.AttributeID, product.CategoryID,
-			)
-		}
-		delete(required, attr.AttributeID)
-	}
-
-	if len(required) > 0 {
-		return nil, fmt.Errorf("missing required category attributes")
 	}
 
 	// 3. Compute attribute hash
 	hash := utils.HashAttributes(in.Attributes)
 
-	var finalVariant models.ProductVariant
-
-	// 4. Check for existing variant
-	existing, err := qtx.GetVariantByAttributeHash(ctx, models.GetVariantByAttributeHashParams{
-		ProductID:     productID,
-		AttributeHash: hash,
-	})
-
-	if err == nil {
-		// Variant exists → increase stock
-		err = qtx.IncreaseVariantStock(ctx, models.IncreaseVariantStockParams{
-			VariantID:     existing.VariantID,
-			StockQuantity: in.Stock,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		finalVariant = existing
-	} else {
-		// Create new variant
-		finalVariant, err = qtx.CreateVariant(ctx, models.CreateVariantParams{
-			ProductID:     productID,
-			StoreID:       storeID,
-			AttributeHash: hash,
-			Sku:           in.SKU,
-			Price:         fmt.Sprintf("%f", in.Price),
-			StockQuantity: in.Stock,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		for _, a := range in.Attributes {
-			err = qtx.InsertVariantAttribute(ctx, models.InsertVariantAttributeParams{
-				VariantID:   finalVariant.VariantID,
-				AttributeID: a.AttributeID,
-				Value:       a.Value,
-			})
-			if err != nil {
-				return nil, err
-			}
-		}
+	// 4. Find or create variant
+	finalVariant, _, err := findOrCreateVariant(ctx,qtx,storeID,productID,hash,in,)
+	if err != nil {
+		return nil, err
 	}
 
 	var uploadedKey string
