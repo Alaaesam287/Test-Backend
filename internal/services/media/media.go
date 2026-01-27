@@ -22,7 +22,14 @@ func New(storage storage.ObjectStorage) *Service {
 
 const MaxImageSize = 5 * 1024 * 1024
 
-// UploadImage validates and uploads an image. Always returns URL and MIME.
+var allowedImageTypes = map[string]string{
+	"image/jpeg": ".jpg",
+	"image/png":  ".png",
+	"image/webp": ".webp",
+}
+
+// UploadImage validates the image, appends the correct extension,
+// uploads it, and returns the final URL and MIME type.
 func (s *Service) UploadImage(
 	ctx context.Context,
 	key string,
@@ -35,6 +42,9 @@ func (s *Service) UploadImage(
 		return "", "", fmt.Errorf("invalid image: %w", err)
 	}
 
+	ext := allowedImageTypes[mime]
+	key = key + ext
+
 	// Upload to storage
 	url, err := s.storage.Upload(ctx, key, validated, -1, mime)
 	if err != nil {
@@ -44,14 +54,10 @@ func (s *Service) UploadImage(
 	return url, mime, nil
 }
 
-// Allowed MIME types
-var allowedMIMEs = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/webp": true,
-}
-
-// ValidateImage checks the image's size and type before upload.
+// ValidateImage consumes r and returns a new reader that:
+//   - enforces MaxImageSize
+//   - guarantees a valid image MIME
+//   - must be used downstream (single-pass)
 func ValidateImage(r io.Reader) (io.Reader, string, error) {
 
 	header := make([]byte, 512)
@@ -61,13 +67,14 @@ func ValidateImage(r io.Reader) (io.Reader, string, error) {
 	}
 
 	mime := http.DetectContentType(header[:n])
-	if !allowedMIMEs[mime] {
+	if _, ok := allowedImageTypes[mime]; !ok {
 		return nil, "", fmt.Errorf("unsupported image type: %s", mime)
 	}
 
 	validatedReader := io.MultiReader(bytes.NewReader(header[:n]), r)
 
 	// Wrap with size-checking reader
+	// Enforce size with hard error (prevents silent truncation)
 	sizeChecker := &sizeLimitedReader{
 		R: validatedReader,
 		N: MaxImageSize,
