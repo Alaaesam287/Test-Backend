@@ -94,10 +94,10 @@ func (s *Service) AddItem(
 		}
 	}()
 
-	q := models.New(tx)
+	qtx := s.q.WithTx(tx)
 
 	// 1. Validate session
-	session, err := q.GetSession(ctx, models.GetSessionParams{
+	session, err := qtx.GetSession(ctx, models.GetSessionParams{
 		SessionID: sessionID,
 		StoreID:   storeID,
 	})
@@ -106,13 +106,13 @@ func (s *Service) AddItem(
 	}
 
 	// 2. Lock or create cart
-	cart, err := q.GetCartForSession(ctx, models.GetCartForSessionParams{
+	cart, err := qtx.GetCartForSession(ctx, models.GetCartForSessionParams{
 		StoreID:   storeID,
 		SessionID: sessionID,
 	})
 
 	if err == sql.ErrNoRows {
-		cart, err = q.CreateCart(ctx, models.CreateCartParams{
+		cart, err = qtx.CreateCart(ctx, models.CreateCartParams{
 			StoreID:    storeID,
 			SessionID:  sessionID,
 			CustomerID: session.CustomerID,
@@ -125,7 +125,7 @@ func (s *Service) AddItem(
 	}
 
 	// 3. Validate variant
-	variant, err := q.GetVariantForCart(ctx, models.GetVariantForCartParams{
+	variant, err := qtx.GetVariantForCart(ctx, models.GetVariantForCartParams{
 		VariantID: variantID,
 		StoreID:   storeID,
 	})
@@ -138,7 +138,7 @@ func (s *Service) AddItem(
 	}
 
 	// 4. Upsert item
-	if err = q.UpsertCartItem(ctx, models.UpsertCartItemParams{
+	if err = qtx.UpsertCartItem(ctx, models.UpsertCartItemParams{
 		CartID:    cart.CartID,
 		VariantID: variant.VariantID,
 		Quantity:  qty,
@@ -148,7 +148,7 @@ func (s *Service) AddItem(
 	}
 
 	// 5. Touch cart
-	if err = q.TouchCart(ctx, cart.CartID); err != nil {
+	if err = qtx.TouchCart(ctx, cart.CartID); err != nil {
 		return err
 	}
 
