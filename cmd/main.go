@@ -69,7 +69,7 @@ func main() {
 
 	// Services
 	mediaService := media.New(storage)
-	categoryService := category.NewService(queries)
+	categoryService := category.New(queries)
 	productService := product.New(queries, db, storage, mediaService)
 	cartService := cart.New(queries, db)
 	storeService := store.New(db, queries, storage)

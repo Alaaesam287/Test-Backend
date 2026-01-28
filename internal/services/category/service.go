@@ -10,7 +10,7 @@ type Service struct {
 	db *models.Queries
 }
 
-func NewService(db *models.Queries) *Service {
+func New(db *models.Queries) *Service {
 	return &Service{db: db}
 }
 
