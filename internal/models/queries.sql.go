@@ -33,6 +33,32 @@ func (q *Queries) CategoryHasAttribute(ctx context.Context, arg CategoryHasAttri
 	return column_1, err
 }
 
+const createCart = `-- name: CreateCart :one
+INSERT INTO cart (store_id, session_id, customer_id)
+VALUES ($1, $2, $3)
+RETURNING cart_id, store_id, session_id, customer_id, created_at, updated_at
+`
+
+type CreateCartParams struct {
+	StoreID    int64
+	SessionID  uuid.UUID
+	CustomerID sql.NullInt64
+}
+
+func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (Cart, error) {
+	row := q.db.QueryRowContext(ctx, createCart, arg.StoreID, arg.SessionID, arg.CustomerID)
+	var i Cart
+	err := row.Scan(
+		&i.CartID,
+		&i.StoreID,
+		&i.SessionID,
+		&i.CustomerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createCustomer = `-- name: CreateCustomer :one
 INSERT INTO customer (
   store_id,
@@ -314,10 +340,12 @@ func (q *Queries) GetAdminByEmail(ctx context.Context, email string) (GetAdminBy
 }
 
 const getCartBySession = `-- name: GetCartBySession :one
-SELECT c.cart_id, c.store_id, c.updated_at
+SELECT
+  c.cart_id,
+  c.store_id,
+  c.updated_at
 FROM cart c
-JOIN visitor_session s ON s.customer_id = c.customer_id
-WHERE s.session_id = $1
+WHERE c.session_id = $1
   AND c.store_id = $2
 LIMIT 1
 `
@@ -337,6 +365,32 @@ func (q *Queries) GetCartBySession(ctx context.Context, arg GetCartBySessionPara
 	row := q.db.QueryRowContext(ctx, getCartBySession, arg.SessionID, arg.StoreID)
 	var i GetCartBySessionRow
 	err := row.Scan(&i.CartID, &i.StoreID, &i.UpdatedAt)
+	return i, err
+}
+
+const getCartForSession = `-- name: GetCartForSession :one
+SELECT cart_id, store_id, session_id, customer_id, created_at, updated_at
+FROM cart
+WHERE store_id = $1 AND session_id = $2
+FOR UPDATE
+`
+
+type GetCartForSessionParams struct {
+	StoreID   int64
+	SessionID uuid.UUID
+}
+
+func (q *Queries) GetCartForSession(ctx context.Context, arg GetCartForSessionParams) (Cart, error) {
+	row := q.db.QueryRowContext(ctx, getCartForSession, arg.StoreID, arg.SessionID)
+	var i Cart
+	err := row.Scan(
+		&i.CartID,
+		&i.StoreID,
+		&i.SessionID,
+		&i.CustomerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -401,6 +455,20 @@ func (q *Queries) GetCartItems(ctx context.Context, cartID int64) ([]GetCartItem
 		return nil, err
 	}
 	return items, nil
+}
+
+const getCartTotal = `-- name: GetCartTotal :one
+SELECT
+  COALESCE(SUM(ci.unit_price * ci.quantity), 0)::NUMERIC AS total
+FROM cart_item ci
+WHERE ci.cart_id = $1
+`
+
+func (q *Queries) GetCartTotal(ctx context.Context, cartID int64) (string, error) {
+	row := q.db.QueryRowContext(ctx, getCartTotal, cartID)
+	var total string
+	err := row.Scan(&total)
+	return total, err
 }
 
 const getCustomerByEmail = `-- name: GetCustomerByEmail :one
@@ -725,6 +793,29 @@ func (q *Queries) GetRefreshToken(ctx context.Context, token string) (RefreshTok
 	return i, err
 }
 
+const getSession = `-- name: GetSession :one
+SELECT session_id, customer_id
+FROM visitor_session
+WHERE session_id = $1 AND store_id = $2
+`
+
+type GetSessionParams struct {
+	SessionID uuid.UUID
+	StoreID   int64
+}
+
+type GetSessionRow struct {
+	SessionID  uuid.UUID
+	CustomerID sql.NullInt64
+}
+
+func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (GetSessionRow, error) {
+	row := q.db.QueryRowContext(ctx, getSession, arg.SessionID, arg.StoreID)
+	var i GetSessionRow
+	err := row.Scan(&i.SessionID, &i.CustomerID)
+	return i, err
+}
+
 const getStore = `-- name: GetStore :one
 SELECT store_id, store_owner_id, name, domain, currency, timezone, created_at, updated_at
 FROM store
@@ -922,6 +1013,36 @@ func (q *Queries) GetVariantByAttributeHash(ctx context.Context, arg GetVariantB
 		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
+	return i, err
+}
+
+const getVariantForCart = `-- name: GetVariantForCart :one
+SELECT
+  variant_id,
+  price,
+  stock_quantity
+FROM product_variant
+WHERE variant_id = $1
+  AND store_id = $2
+  AND deleted_at IS NULL
+FOR UPDATE
+`
+
+type GetVariantForCartParams struct {
+	VariantID int64
+	StoreID   int64
+}
+
+type GetVariantForCartRow struct {
+	VariantID     int64
+	Price         string
+	StockQuantity int32
+}
+
+func (q *Queries) GetVariantForCart(ctx context.Context, arg GetVariantForCartParams) (GetVariantForCartRow, error) {
+	row := q.db.QueryRowContext(ctx, getVariantForCart, arg.VariantID, arg.StoreID)
+	var i GetVariantForCartRow
+	err := row.Scan(&i.VariantID, &i.Price, &i.StockQuantity)
 	return i, err
 }
 
@@ -1159,6 +1280,15 @@ func (q *Queries) SetPrimaryVariantImage(ctx context.Context, arg SetPrimaryVari
 	return err
 }
 
+const touchCart = `-- name: TouchCart :exec
+UPDATE cart SET updated_at = NOW() WHERE cart_id = $1
+`
+
+func (q *Queries) TouchCart(ctx context.Context, cartID int64) error {
+	_, err := q.db.ExecContext(ctx, touchCart, cartID)
+	return err
+}
+
 const updateProductStock = `-- name: UpdateProductStock :exec
 UPDATE product
 SET stock_quantity = stock_quantity + $2,
@@ -1174,5 +1304,30 @@ type UpdateProductStockParams struct {
 
 func (q *Queries) UpdateProductStock(ctx context.Context, arg UpdateProductStockParams) error {
 	_, err := q.db.ExecContext(ctx, updateProductStock, arg.ProductID, arg.StockQuantity)
+	return err
+}
+
+const upsertCartItem = `-- name: UpsertCartItem :exec
+INSERT INTO cart_item (cart_id, variant_id, quantity, unit_price)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (cart_id, variant_id)
+DO UPDATE SET
+  quantity = cart_item.quantity + EXCLUDED.quantity
+`
+
+type UpsertCartItemParams struct {
+	CartID    int64
+	VariantID int64
+	Quantity  int32
+	UnitPrice string
+}
+
+func (q *Queries) UpsertCartItem(ctx context.Context, arg UpsertCartItemParams) error {
+	_, err := q.db.ExecContext(ctx, upsertCartItem,
+		arg.CartID,
+		arg.VariantID,
+		arg.Quantity,
+		arg.UnitPrice,
+	)
 	return err
 }

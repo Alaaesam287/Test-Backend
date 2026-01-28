@@ -103,12 +103,20 @@ WHERE s.store_id = $1 AND c.name = $2
 LIMIT 1;
 
 -- name: GetCartBySession :one
-SELECT c.cart_id, c.store_id, c.updated_at
+SELECT
+  c.cart_id,
+  c.store_id,
+  c.updated_at
 FROM cart c
-JOIN visitor_session s ON s.customer_id = c.customer_id
-WHERE s.session_id = $1
+WHERE c.session_id = $1
   AND c.store_id = $2
 LIMIT 1;
+
+-- name: GetCartTotal :one
+SELECT
+  COALESCE(SUM(ci.unit_price * ci.quantity), 0)::NUMERIC AS total
+FROM cart_item ci
+WHERE ci.cart_id = $1;
 
 -- name: GetCartItems :many
 SELECT
@@ -126,6 +134,43 @@ JOIN product_variant v ON v.variant_id = ci.variant_id
 JOIN product p ON p.product_id = v.product_id
 WHERE ci.cart_id = $1
 ORDER BY ci.created_at;
+
+-- name: GetSession :one
+SELECT session_id, customer_id
+FROM visitor_session
+WHERE session_id = $1 AND store_id = $2;
+
+-- name: GetCartForSession :one
+SELECT *
+FROM cart
+WHERE store_id = $1 AND session_id = $2
+FOR UPDATE;
+
+-- name: CreateCart :one
+INSERT INTO cart (store_id, session_id, customer_id)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: GetVariantForCart :one
+SELECT
+  variant_id,
+  price,
+  stock_quantity
+FROM product_variant
+WHERE variant_id = $1
+  AND store_id = $2
+  AND deleted_at IS NULL
+FOR UPDATE;
+
+-- name: UpsertCartItem :exec
+INSERT INTO cart_item (cart_id, variant_id, quantity, unit_price)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (cart_id, variant_id)
+DO UPDATE SET
+  quantity = cart_item.quantity + EXCLUDED.quantity;
+
+-- name: TouchCart :exec
+UPDATE cart SET updated_at = NOW() WHERE cart_id = $1;
 
 -- name: IsStoreOwner :one
 SELECT EXISTS (
