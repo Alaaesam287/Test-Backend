@@ -5,18 +5,18 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/Secure-Website-Builder/Backend/internal/database"
 	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/Secure-Website-Builder/Backend/internal/utils"
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	q *models.Queries
-	db *sql.DB
+	db *database.DB
 }
 
-func New(q *models.Queries, db *sql.DB) *Service {
-	return &Service{q: q, db: db}
+func New(db *database.DB) *Service {
+	return &Service{db: db}
 }
 
 func (s *Service) GetCart(
@@ -25,7 +25,7 @@ func (s *Service) GetCart(
 	sessionID uuid.UUID,
 ) (*models.CartDTO, error) {
 
-	cartRow, err := s.q.GetCartBySession(ctx, models.GetCartBySessionParams{
+	cartRow, err := s.db.Queries.GetCartBySession(ctx, models.GetCartBySessionParams{
 		SessionID: sessionID,
 		StoreID:   storeID,
 	})
@@ -40,7 +40,7 @@ func (s *Service) GetCart(
 		return nil, err
 	}
 
-	itemsRaw, err := s.q.GetCartItems(ctx, cartRow.CartID)
+	itemsRaw, err := s.db.Queries.GetCartItems(ctx, cartRow.CartID)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (s *Service) GetCart(
 		})
 	}
 
-	total, err := s.q.GetCartTotal(ctx, cartRow.CartID)
+	total, err := s.db.Queries.GetCartTotal(ctx, cartRow.CartID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,75 +83,68 @@ func (s *Service) AddItem(
 	qty int32,
 ) (err error) {
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
 
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
+	return s.db.RunInTx(ctx, func(qtx *models.Queries) error {
+
+		if qty <= 0 {
+			return fmt.Errorf("quantity must be greater than zero")
 		}
-	}()
 
-	qtx := s.q.WithTx(tx)
-
-	// 1. Validate session
-	session, err := qtx.GetSession(ctx, models.GetSessionParams{
-		SessionID: sessionID,
-		StoreID:   storeID,
-	})
-	if err != nil {
-		return fmt.Errorf("invalid session: %w", err)
-	}
-
-	// 2. Lock or create cart
-	cart, err := qtx.GetCartForSession(ctx, models.GetCartForSessionParams{
-		StoreID:   storeID,
-		SessionID: sessionID,
-	})
-
-	if err == sql.ErrNoRows {
-		cart, err = qtx.CreateCart(ctx, models.CreateCartParams{
-			StoreID:    storeID,
-			SessionID:  sessionID,
-			CustomerID: session.CustomerID,
+		// Validate session
+		session, err := qtx.GetSession(ctx, models.GetSessionParams{
+			SessionID: sessionID,
+			StoreID:   storeID,
 		})
 		if err != nil {
+			return fmt.Errorf("invalid session: %w", err)
+		}
+
+		// Lock or create cart
+		cart, err := qtx.GetCartForSession(ctx, models.GetCartForSessionParams{
+			StoreID:   storeID,
+			SessionID: sessionID,
+		})
+
+		if err == sql.ErrNoRows {
+			cart, err = qtx.CreateCart(ctx, models.CreateCartParams{
+				StoreID:    storeID,
+				SessionID:  sessionID,
+				CustomerID: session.CustomerID,
+			})
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
 			return err
 		}
-	} else if err != nil {
-		return err
-	}
 
-	// 3. Validate variant
-	variant, err := qtx.GetVariantForCart(ctx, models.GetVariantForCartParams{
-		VariantID: variantID,
-		StoreID:   storeID,
+		// Validate variant
+		variant, err := qtx.GetVariantForCart(ctx, models.GetVariantForCartParams{
+			VariantID: variantID,
+			StoreID:   storeID,
+		})
+		if err != nil {
+			return fmt.Errorf("invalid variant: %w", err)
+		}
+
+		if variant.StockQuantity < qty {
+			return fmt.Errorf("insufficient stock for variant %d", variantID)
+		}
+
+		// Upsert item
+		if err = qtx.UpsertCartItem(ctx, models.UpsertCartItemParams{
+			CartID:    cart.CartID,
+			VariantID: variant.VariantID,
+			Quantity:  qty,
+			UnitPrice: variant.Price,
+		}); err != nil {
+			return err
+		}
+
+		// Touch cart
+		if err = qtx.TouchCart(ctx, cart.CartID); err != nil {
+			return err
+		}
+	return nil
 	})
-	if err != nil {
-		return fmt.Errorf("invalid variant: %w", err)
-	}
-
-	if variant.StockQuantity < qty {
-		return fmt.Errorf("insufficient stock for variant %d", variantID)
-	}
-
-	// 4. Upsert item
-	if err = qtx.UpsertCartItem(ctx, models.UpsertCartItemParams{
-		CartID:    cart.CartID,
-		VariantID: variant.VariantID,
-		Quantity:  qty,
-		UnitPrice: variant.Price,
-	}); err != nil {
-		return err
-	}
-
-	// 5. Touch cart
-	if err = qtx.TouchCart(ctx, cart.CartID); err != nil {
-		return err
-	}
-
-	// 6. Commit
-	return tx.Commit()
 }

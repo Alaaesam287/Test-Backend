@@ -292,6 +292,13 @@ FROM product_variant
 WHERE variant_id = $1
   AND deleted_at IS NULL;
 
+-- name: GetVariantForUpdate :one
+SELECT *
+FROM product_variant
+WHERE variant_id = $1
+  AND deleted_at IS NULL
+FOR UPDATE; 
+
 -- name: CreateVariant :one
 INSERT INTO product_variant (
   product_id, store_id, attribute_hash,
@@ -347,6 +354,17 @@ INSERT INTO store (
     timezone
 ) VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
+
+-- name: UpdateStoreDownloadStatus :exec
+UPDATE store
+SET download_status = $2,
+    updated_at = NOW()
+WHERE store_id = $1;
+
+-- name: GetStoreByOwnerID :one
+SELECT *
+FROM store
+WHERE store_owner_id = $1;
 
 -- name: DeleteStore :exec
 DELETE FROM store

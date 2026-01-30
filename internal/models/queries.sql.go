@@ -187,7 +187,7 @@ INSERT INTO store (
     currency,
     timezone
 ) VALUES ($1, $2, $3, $4, $5)
-RETURNING store_id, store_owner_id, name, domain, currency, timezone, created_at, updated_at
+RETURNING store_id, store_owner_id, name, domain, download_status, currency, timezone, created_at, updated_at
 `
 
 type CreateStoreParams struct {
@@ -212,6 +212,7 @@ func (q *Queries) CreateStore(ctx context.Context, arg CreateStoreParams) (Store
 		&i.StoreOwnerID,
 		&i.Name,
 		&i.Domain,
+		&i.DownloadStatus,
 		&i.Currency,
 		&i.Timezone,
 		&i.CreatedAt,
@@ -817,7 +818,7 @@ func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (GetSess
 }
 
 const getStore = `-- name: GetStore :one
-SELECT store_id, store_owner_id, name, domain, currency, timezone, created_at, updated_at
+SELECT store_id, store_owner_id, name, domain, download_status, currency, timezone, created_at, updated_at
 FROM store
 WHERE store_id = $1
 `
@@ -830,6 +831,30 @@ func (q *Queries) GetStore(ctx context.Context, storeID int64) (Store, error) {
 		&i.StoreOwnerID,
 		&i.Name,
 		&i.Domain,
+		&i.DownloadStatus,
+		&i.Currency,
+		&i.Timezone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getStoreByOwnerID = `-- name: GetStoreByOwnerID :one
+SELECT store_id, store_owner_id, name, domain, download_status, currency, timezone, created_at, updated_at
+FROM store
+WHERE store_owner_id = $1
+`
+
+func (q *Queries) GetStoreByOwnerID(ctx context.Context, storeOwnerID int64) (Store, error) {
+	row := q.db.QueryRowContext(ctx, getStoreByOwnerID, storeOwnerID)
+	var i Store
+	err := row.Scan(
+		&i.StoreID,
+		&i.StoreOwnerID,
+		&i.Name,
+		&i.Domain,
+		&i.DownloadStatus,
 		&i.Currency,
 		&i.Timezone,
 		&i.CreatedAt,
@@ -1043,6 +1068,33 @@ func (q *Queries) GetVariantForCart(ctx context.Context, arg GetVariantForCartPa
 	row := q.db.QueryRowContext(ctx, getVariantForCart, arg.VariantID, arg.StoreID)
 	var i GetVariantForCartRow
 	err := row.Scan(&i.VariantID, &i.Price, &i.StockQuantity)
+	return i, err
+}
+
+const getVariantForUpdate = `-- name: GetVariantForUpdate :one
+SELECT variant_id, product_id, store_id, attribute_hash, sku, price, stock_quantity, primary_image_url, created_at, updated_at, deleted_at
+FROM product_variant
+WHERE variant_id = $1
+  AND deleted_at IS NULL
+FOR UPDATE
+`
+
+func (q *Queries) GetVariantForUpdate(ctx context.Context, variantID int64) (ProductVariant, error) {
+	row := q.db.QueryRowContext(ctx, getVariantForUpdate, variantID)
+	var i ProductVariant
+	err := row.Scan(
+		&i.VariantID,
+		&i.ProductID,
+		&i.StoreID,
+		&i.AttributeHash,
+		&i.Sku,
+		&i.Price,
+		&i.StockQuantity,
+		&i.PrimaryImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
 	return i, err
 }
 
@@ -1304,6 +1356,23 @@ type UpdateProductStockParams struct {
 
 func (q *Queries) UpdateProductStock(ctx context.Context, arg UpdateProductStockParams) error {
 	_, err := q.db.ExecContext(ctx, updateProductStock, arg.ProductID, arg.StockQuantity)
+	return err
+}
+
+const updateStoreDownloadStatus = `-- name: UpdateStoreDownloadStatus :exec
+UPDATE store
+SET download_status = $2,
+    updated_at = NOW()
+WHERE store_id = $1
+`
+
+type UpdateStoreDownloadStatusParams struct {
+	StoreID        int64
+	DownloadStatus string
+}
+
+func (q *Queries) UpdateStoreDownloadStatus(ctx context.Context, arg UpdateStoreDownloadStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateStoreDownloadStatus, arg.StoreID, arg.DownloadStatus)
 	return err
 }
 
