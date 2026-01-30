@@ -9,10 +9,10 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/Secure-Website-Builder/Backend/internal/config"
+	"github.com/Secure-Website-Builder/Backend/internal/database"
 	"github.com/Secure-Website-Builder/Backend/internal/http/handlers"
 	"github.com/Secure-Website-Builder/Backend/internal/http/middleware"
 	"github.com/Secure-Website-Builder/Backend/internal/http/router"
-	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/Secure-Website-Builder/Backend/internal/services/auth"
 	"github.com/Secure-Website-Builder/Backend/internal/services/cart"
 	"github.com/Secure-Website-Builder/Backend/internal/services/category"
@@ -40,20 +40,19 @@ func main() {
 	)
 
 	// Open DB connection
-	db, err := sql.Open("postgres", dbURI)
+	dbPool, err := sql.Open("postgres", dbURI)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer dbPool.Close()
 
 	// Ensure DB is reachable
-	if err := db.Ping(); err != nil {
+	if err := dbPool.Ping(); err != nil {
 		log.Fatalf("failed to ping database: %v", err)
 	}
 
-	// sqlc generated queries
-	queries := models.New(db)
-
+	// database wrapper
+	db := database.NewDB(dbPool)
 	// storage
 	storage, err := storage.NewMinIOStorage(
 		cfg.MinIOEndpoint,
@@ -69,11 +68,11 @@ func main() {
 
 	// Services
 	mediaService := media.New(storage)
-	categoryService := category.New(queries)
-	productService := product.New(queries, db, storage, mediaService)
-	cartService := cart.New(queries, db)
-	storeService := store.New(db, queries, storage)
-	authService := auth.New(queries, cfg.JWTSecret)
+	categoryService := category.New(db)
+	productService := product.New(db, storage, mediaService)
+	cartService := cart.New(db)
+	storeService := store.New(db, storage)
+	authService := auth.New(db, cfg.JWTSecret)
 
 	// Middleware helpers
 	storeOwnerChecker := middleware.NewStoreOwnerChecker(storeService)
