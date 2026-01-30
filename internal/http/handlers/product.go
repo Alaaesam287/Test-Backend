@@ -206,14 +206,13 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	// 2. Read file (optional)
-	file, header, _ := c.Request.FormFile("primary_image")
+	file, _, _ := c.Request.FormFile("primary_image")
 
 	product, variant, err := h.Service.CreateProduct(
 		c.Request.Context(),
 		storeID,
 		req,
 		file,
-		header,
 	)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -237,7 +236,7 @@ func (h *ProductHandler) AddVariant(c *gin.Context) {
 		return
 	}
 
-	file, header, _ := c.Request.FormFile("primary_image")
+	file, _, _ := c.Request.FormFile("primary_image")
 
 	variant, err := h.Service.AddVariant(
 		c.Request.Context(),
@@ -245,7 +244,6 @@ func (h *ProductHandler) AddVariant(c *gin.Context) {
 		productID,
 		req,
 		file,
-		header,
 	)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -281,7 +279,6 @@ func (h *ProductHandler) UploadVariantImage(c *gin.Context) {
 		productID,
 		variantID,
 		file,
-		fileHeader,
 		isPrimary,
 	)
 
