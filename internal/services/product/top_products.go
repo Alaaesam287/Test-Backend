@@ -13,7 +13,7 @@ func (s *Service) GetTopProductsByCategory(
 	limit int32,
 ) ([]models.ProductDTO, error) {
 
-	rows, err := s.q.GetTopProductsByCategory(ctx, models.GetTopProductsByCategoryParams{
+	rows, err := s.db.Queries.GetTopProductsByCategory(ctx, models.GetTopProductsByCategoryParams{
 		StoreID:    storeID,
 		CategoryID: categoryID,
 		Limit:      limit,

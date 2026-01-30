@@ -13,25 +13,23 @@ import (
 	"github.com/Secure-Website-Builder/Backend/internal/storage"
 	"github.com/Secure-Website-Builder/Backend/internal/utils"
 	"github.com/Secure-Website-Builder/Backend/internal/services/media"
-	"github.com/google/uuid"
 )
 
 type Service struct {
-	q       *models.Queries
 	storage storage.ObjectStorage
 	media   *media.Service
-	db      *sql.DB
+	db      *database.DB
 }
 
 // New creates the product service; pass sqlc queries struct and raw *sql.DB
-func New(q *models.Queries, db *sql.DB, storage storage.ObjectStorage, mediaService *media.Service) *Service {
-	return &Service{q: q, db: db, storage: storage, media: mediaService}
+func New(db *database.DB, storage storage.ObjectStorage, mediaService *media.Service) *Service {
+	return &Service{db: db, storage: storage, media: mediaService}
 }
 
 func (s *Service) GetFullProduct(ctx context.Context, storeID, productID int64) (*models.ProductFullDetailsDTO, error) {
 
 	//  Base Product
-	p, err := s.q.GetProductBase(ctx, models.GetProductBaseParams{
+	p, err := s.db.Queries.GetProductBase(ctx, models.GetProductBaseParams{
 		StoreID:   storeID,
 		ProductID: productID,
 	})
@@ -43,7 +41,7 @@ func (s *Service) GetFullProduct(ctx context.Context, storeID, productID int64) 
 	var defaultVariantDTO models.VariantDTO
 
 	//  All Variants
-	variantsRaw, err := s.q.GetProductVariants(ctx, productID)
+	variantsRaw, err := s.db.Queries.GetProductVariants(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +50,7 @@ func (s *Service) GetFullProduct(ctx context.Context, storeID, productID int64) 
 
 	for i, v := range variantsRaw {
 		// Get Attributes for each variant
-		variantAttributesRows, err := s.q.GetProductVariantAttributes(ctx, v.VariantID)
+		variantAttributesRows, err := s.db.Queries.GetProductVariantAttributes(ctx, v.VariantID)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +144,7 @@ func readListProductsTemplate() (string, error) {
 func (s *Service) ResolveAttributeNameToID(ctx context.Context, storeID int64, name string) (int64, error) {
 	// The sqlc function generated from queries.sql is called ResolveAttributeIDByName
 	// (ensure names match your sqlc config; adjust name if sqlc generated a different function).
-	id, err := s.q.ResolveAttributeIDByName(ctx, name)
+	id, err := s.db.Queries.ResolveAttributeIDByName(ctx, name)
 	if err != nil {
 		return 0, err
 	}
@@ -156,7 +154,7 @@ func (s *Service) ResolveAttributeNameToID(ctx context.Context, storeID int64, n
 // ResolveCategoryNameToID uses sqlc generated query: ResolveCategoryIDByName
 // This wraps the generated method for convenience if needed.
 func (s *Service) ResolveCategoryNameToID(ctx context.Context, storeID int64, name string) (int64, error) {
-	id, err := s.q.ResolveCategoryIDByName(ctx, models.ResolveCategoryIDByNameParams{StoreID: storeID, Name: name})
+	id, err := s.db.Queries.ResolveCategoryIDByName(ctx, models.ResolveCategoryIDByNameParams{StoreID: storeID, Name: name})
 	if err != nil {
 		return 0, err
 	}
@@ -231,215 +229,244 @@ func (s *Service) ListProducts(ctx context.Context, storeID int64, f ListProduct
 	return res, nil
 }
 
-// TODO: Success Response with note
-// 			- Product created but image not uploaded try to upload it again
-// 			- The product were already exist we increased the stock of the existing one
-// 			- The product were already exist we did not change it's image if you want to change it edit the product not insert a new one
-
+// CreateProduct creates or updates a product and its variant inside a single database transaction.
+//
+// The transaction guarantees atomicity for all product- and variant-related database changes,
+// including attribute validation, product creation or lookup, variant creation or lookup,
+// default variant assignment, and stock updates.
+//
+// Image upload is intentionally executed AFTER the transaction commits.
+// This follows a Saga-style approach with soft failure handling:
+//   - If image upload fails, the product and variant remain successfully created.
+//   - If setting the primary image in the database fails after a successful upload,
+//     the uploaded image is deleted to avoid orphaned media.
+//   - The client may retry the image upload later via a separate endpoint.
+//
+// This design avoids long-running transactions and external side effects
+// (such as network or storage operations) inside the database transaction.
 func (s *Service) CreateProduct(
 	ctx context.Context,
 	storeID int64,
 	in models.CreateProductInput,
 	image multipart.File,
-	header *multipart.FileHeader,
 ) (*models.Product, *models.ProductVariant, error) {
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer tx.Rollback()
-
-	qtx := s.q.WithTx(tx)
-
-	// 2. Validate attributes in request against preset category attributes
-	if err := validateVariantAttributes(ctx, qtx, in.CategoryID, in.Variant.Attributes); err != nil {
-		return nil, nil, err
-	}
-
-	// 3. Find or create product
-	product, productWasOutOfStock, err := findOrCreateProduct(ctx,qtx,storeID,in,)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// 5. Compute attribute hash
-	hash := utils.HashAttributes(in.Variant.Attributes)
-
-	// 6. Find or create variant
-	finalVariant, isNewVariant, err := findOrCreateVariant(
-		ctx,
-		qtx,
-		storeID,
-		product.ProductID,
-		hash,
-		in.Variant,
+	var (
+		product      models.Product
+		finalVariant models.ProductVariant
+		err          error
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 
-	var uploadedKey string
-	if image != nil && finalVariant.PrimaryImageUrl.Valid == false {
-		key := fmt.Sprintf("stores/%d/variants/%d/%s",
+	// Start transaction
+	err = s.db.RunInTx(ctx, func(qtx *models.Queries) error {
+
+		var productWasOutOfStock bool
+		
+
+		// Validate attributes in request against preset category attributes
+		if err := validateVariantAttributes(ctx, qtx, in.CategoryID, in.Variant.Attributes); err != nil {
+			return err
+		}
+
+		// Find or create product
+		product, productWasOutOfStock, err = findOrCreateProduct(ctx, qtx, storeID, in)
+		if err != nil {
+			return err
+		}
+
+		// Compute attribute hash
+		hash := utils.HashAttributes(in.Variant.Attributes)
+
+		// Find or create variant
+		finalVariant, err = findOrCreateVariant(
+			ctx,
+			qtx,
 			storeID,
-			finalVariant.VariantID,
-			uuid.NewString(),
+			product.ProductID,
+			hash,
+			in.Variant,
 		)
+		if err != nil {
+			return err
+		}
 
-		url, _, err := s.media.UploadImage(ctx, key, image) 
-		if err == nil {
-		uploadedKey = key
-		err = qtx.SetPrimaryVariantImage(ctx, models.SetPrimaryVariantImageParams{
-			VariantID: finalVariant.VariantID,
-			PrimaryImageUrl: sql.NullString{
-				String: url,
-				Valid:  true,
+		// Set default variant if product was previously not sellable
+		// either new product or existing product out of stock
+		if productWasOutOfStock {
+			err = qtx.SetDefaultVariant(ctx, models.SetDefaultVariantParams{
+				ProductID: product.ProductID,
+				DefaultVariantID: sql.NullInt64{
+					Int64: finalVariant.VariantID,
+					Valid: true,
 				},
 			})
-
 			if err != nil {
-				// Delete uploaded image if DB insert fails
-				_ = s.storage.Delete(ctx, uploadedKey)
-				return nil, nil, fmt.Errorf("failed to set variant image in DB: %w", err)
+				return err
 			}
 		}
-	}
 
-	// 7. Set default variant if product was previously not sellable
-	if productWasOutOfStock && isNewVariant {
-		err = qtx.SetDefaultVariant(ctx, models.SetDefaultVariantParams{
-			ProductID: product.ProductID,
-			DefaultVariantID: sql.NullInt64{
-				Int64: finalVariant.VariantID,
-				Valid: true,
-			},
+		// Update product stock
+		err = qtx.UpdateProductStock(ctx, models.UpdateProductStockParams{
+			ProductID:     product.ProductID,
+			StockQuantity: in.Variant.Stock,
 		})
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
-	}
-
-	// 8. Update product stock
-	err = qtx.UpdateProductStock(ctx, models.UpdateProductStockParams{
-		ProductID:     product.ProductID,
-		StockQuantity: in.Variant.Stock,
+			return nil
 	})
+
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		if uploadedKey != "" {
-			_ = s.storage.Delete(ctx, uploadedKey)
+	// Upload image if provided and variant has no image yet
+	// either new variant or existing variant without image
+	if image != nil && finalVariant.PrimaryImageUrl.Valid == false {
+		key := generateImageUploadKey(storeID, finalVariant.VariantID)
+		url, _, err := s.media.UploadImage(ctx, key, image) 
+		// if the upload image fails we do not rollback the whole transaction as the product and variant were created/updated successfully
+		// we just skip setting the image and return success to the user
+		// the user can try to upload the image again later
+		// so we silently skip handling err != nil later
+		// TODO: Log that the image was not uploaded on err != nil
+		if err == nil {
+			err = s.db.Queries.SetPrimaryVariantImage(ctx, models.SetPrimaryVariantImageParams{
+				VariantID: finalVariant.VariantID,
+				PrimaryImageUrl: sql.NullString{
+					String: url,
+					Valid:  true,
+					},
+			})
+			
+			// we will not return error here also, just delete the uploaded image
+			if err != nil {
+					// TODO: Later we can use outbox pattern to handler the failure of Deleting image 
+					// right now we assume that delete always succeeds
+					_ = s.storage.Delete(ctx, key)
+			}else {
+				finalVariant.PrimaryImageUrl = sql.NullString{
+					String: url,
+					Valid:  true,
+				}
+			}
 		}
-		return nil, nil, err
 	}
 
 	return &product, &finalVariant, nil
 }
 
-// TODO: Success Response with note
-// 			- Variant created but image not uploaded try to upload it again
-// 			- The variant were already exist we increased the stock of the existing one
-// 			- The variant were already exist we did not change it's image if you want to change it edit the product not insert a new one
 
+// AddVariant creates or updates a product variant inside a single database transaction.
+//
+// The transaction guarantees atomicity for all variant-related database changes,
+// including product locking and ownership validation, attribute validation,
+// variant creation or lookup, default variant assignment, and product stock updates.
+//
+// Image upload is intentionally executed AFTER the transaction commits.
+// This follows a Saga-style approach with soft failure handling:
+//   - If image upload fails, the variant remains successfully created or updated.
+//   - If setting the primary image in the database fails after a successful upload,
+//     the uploaded image is deleted to avoid orphaned media.
+//   - The client may retry the image upload later via a separate endpoint.
+//
+// This design avoids long-running transactions and external side effects
+// (such as network or storage operations) inside the database transaction.
 func (s *Service) AddVariant(
 	ctx context.Context,
 	storeID, productID int64,
 	in models.VariantInput,
 	image multipart.File,
-	header *multipart.FileHeader,
 ) (*models.ProductVariant, error) {
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	qtx := s.q.WithTx(tx)
-
-	// 1. Lock + fetch product
-	product, err := qtx.GetProductForUpdate(ctx, productID)
-	if err != nil {
-		return nil, fmt.Errorf("product not found")
-	}
-
-	if product.StoreID != storeID {
-		return nil, fmt.Errorf("product does not belong to store")
-	}
-
-	productWasOutOfStock := product.StockQuantity == 0
-
-	if err := validateVariantAttributes(ctx, qtx, product.CategoryID, in.Attributes); err != nil {
-		return nil, err
-	}
-
-	// 3. Compute attribute hash
-	hash := utils.HashAttributes(in.Attributes)
-
-	// 4. Find or create variant
-	finalVariant, _, err := findOrCreateVariant(ctx,qtx,storeID,productID,hash,in,)
-	if err != nil {
-		return nil, err
-	}
-
-	var uploadedKey string
-	if image != nil && finalVariant.PrimaryImageUrl.Valid == false {
-		key := fmt.Sprintf("stores/%d/variants/%d/%s",
-			storeID,
-			finalVariant.VariantID,
-			uuid.NewString(),
-		)
-
-		url, _, err := s.media.UploadImage(ctx, key, image) 
-		if err == nil {
-		uploadedKey = key
-		err = qtx.SetPrimaryVariantImage(ctx, models.SetPrimaryVariantImageParams{
-			VariantID: finalVariant.VariantID,
-			PrimaryImageUrl: sql.NullString{
-				String: url,
-				Valid:  true,
-				},
-			})
-
-			if err != nil {
-				// Delete uploaded image if DB insert fails
-				_ = s.storage.Delete(ctx, uploadedKey)
-				return nil, fmt.Errorf("failed to set variant image in DB: %w", err)
-			}
+	var finalVariant  models.ProductVariant
+	
+	err := s.db.RunInTx(ctx, func(qtx *models.Queries) error {
+		// Lock + fetch product
+		product, err := qtx.GetProductForUpdate(ctx, productID)
+		if err != nil {
+			return fmt.Errorf("product not found")
 		}
-	}
 
-	// 5. Update product stock
-	err = qtx.UpdateProductStock(ctx, models.UpdateProductStockParams{
-		ProductID:     productID,
-		StockQuantity: in.Stock,
-	})
-	if err != nil {
-		return nil, err
-	}
+		if product.StoreID != storeID {
+			return fmt.Errorf("product does not belong to store")
+		}
 
-	// 6. Set default variant if product was previously out of stock
-	if productWasOutOfStock {
-		err = qtx.SetDefaultVariant(ctx, models.SetDefaultVariantParams{
-			ProductID: productID,
-			DefaultVariantID: sql.NullInt64{
-				Int64: finalVariant.VariantID,
-				Valid: true,
-			},
+		productWasOutOfStock := product.StockQuantity == 0
+
+		if err := validateVariantAttributes(ctx, qtx, product.CategoryID, in.Attributes); err != nil {
+			return err
+		}
+
+		// Compute attribute hash
+		hash := utils.HashAttributes(in.Attributes)
+
+		// Find or create variant
+		finalVariant, err = findOrCreateVariant(ctx, qtx, storeID, productID, hash, in)
+		if err != nil {
+			return err
+		}
+
+		// Update product stock
+		err = qtx.UpdateProductStock(ctx, models.UpdateProductStockParams{
+			ProductID:     productID,
+			StockQuantity: in.Stock,
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
+
+		// Set default variant if product was previously out of stock
+		if productWasOutOfStock {
+			err = qtx.SetDefaultVariant(ctx, models.SetDefaultVariantParams{
+				ProductID: productID,
+				DefaultVariantID: sql.NullInt64{
+					Int64: finalVariant.VariantID,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		if uploadedKey != "" {
-			_ = s.storage.Delete(ctx, uploadedKey)
+	// Upload image if provided and variant has no image yet
+	// either new variant or existing variant without image
+	if image != nil && finalVariant.PrimaryImageUrl.Valid == false {
+		key := generateImageUploadKey(storeID, finalVariant.VariantID)
+		url, _, err := s.media.UploadImage(ctx, key, image) 
+		// if the upload image fails we do not rollback the whole transaction as the product and variant were created/updated successfully
+		// we just skip setting the image and return success to the user
+		// the user can try to upload the image again later
+		// so we silently skip handling err != nil later
+		// TODO: Log that the image was not uploaded on err != nil
+		if err == nil {
+			err = s.db.Queries.SetPrimaryVariantImage(ctx, models.SetPrimaryVariantImageParams{
+				VariantID: finalVariant.VariantID,
+				PrimaryImageUrl: sql.NullString{
+					String: url,
+					Valid:  true,
+					},
+			})
+			
+			// we will not return error here also, just delete the uploaded image
+			if err != nil {
+					// TODO: Later we can use outbox pattern to handler the failure of Deleting image 
+					// right now we assume that delete always succeeds
+					_ = s.storage.Delete(ctx, key)
+			}else {
+				finalVariant.PrimaryImageUrl = sql.NullString{
+					String: url,
+					Valid:  true,
+				}
+			}
 		}
-		return nil, err
 	}
 
 	return &finalVariant, nil
