@@ -172,14 +172,15 @@ type Shipment struct {
 }
 
 type Store struct {
-	StoreID      int64
-	StoreOwnerID int64
-	Name         string
-	Domain       sql.NullString
-	Currency     sql.NullString
-	Timezone     sql.NullString
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	StoreID        int64
+	StoreOwnerID   int64
+	Name           string
+	Domain         sql.NullString
+	DownloadStatus string
+	Currency       sql.NullString
+	Timezone       sql.NullString
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type StoreCategory struct {
