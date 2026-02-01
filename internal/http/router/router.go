@@ -18,6 +18,7 @@ func SetupRouter(
 ) *gin.Engine {
 
 	r := gin.Default()
+	r.Use(middleware.ErrorMiddleware())
 
 	// Auth routes (public)
 	r.POST("/auth/register", authHandler.Register)
@@ -62,6 +63,7 @@ func SetupRouter(
 	)
 	cartGroup.GET("", cartHandler.GetCart)
 	cartGroup.POST("/items", cartHandler.AddItem)
+	cartGroup.POST("/checkout", cartHandler.Checkout)
 
 	// Store owner dashboard routes
 	dashboard := auth.Group("/dashboard/stores/:store_id")
