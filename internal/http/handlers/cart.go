@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Secure-Website-Builder/Backend/internal/services/cart"
+	"github.com/Secure-Website-Builder/Backend/internal/errorx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -117,4 +118,45 @@ func (h *CartHandler) handleAddItemError(c *gin.Context, err error) {
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add item to cart"})
 	}
+}
+
+
+type CheckoutRequest struct {
+	PaymentMethod string `json:"payment_method" binding:"required"`
+}
+
+func (h *CartHandler) Checkout(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	storeID, err := strconv.ParseInt(c.Param("store_id"), 10, 64)
+	if err != nil {
+		c.Error(errorx.ErrInvalidStoreID)
+		return 
+	}
+
+	rawSessionID := c.GetHeader("X-Session-ID")
+	if rawSessionID == "" {
+		c.Error(errorx.ErrMissingSessionID)
+		return
+	}
+
+	sessionID, err := uuid.Parse(rawSessionID)
+	if err != nil {
+		c.Error(errorx.ErrInvalidSessionID)
+		return
+	}
+
+	var req CheckoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(errorx.ErrInvalidRequestBody)
+		return
+	}
+
+	err = h.Service.Checkout(ctx, storeID, sessionID, req.PaymentMethod)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.Status(http.StatusCreated)
 }

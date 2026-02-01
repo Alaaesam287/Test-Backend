@@ -3,9 +3,9 @@ package cart
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/Secure-Website-Builder/Backend/internal/database"
+	"github.com/Secure-Website-Builder/Backend/internal/errorx"
 	"github.com/Secure-Website-Builder/Backend/internal/models"
 	"github.com/Secure-Website-Builder/Backend/internal/utils"
 	"github.com/google/uuid"
@@ -87,7 +87,7 @@ func (s *Service) AddItem(
 	return s.db.RunInTx(ctx, func(qtx *models.Queries) error {
 
 		if qty <= 0 {
-			return fmt.Errorf("quantity must be greater than zero")
+			return errorx.ErrInvalidQuantity
 		}
 
 		// Validate session
@@ -95,8 +95,9 @@ func (s *Service) AddItem(
 			SessionID: sessionID,
 			StoreID:   storeID,
 		})
-		if err != nil {
-			return fmt.Errorf("invalid session: %w", err)
+		
+		if err != nil || !session.CustomerID.Valid{
+			return errorx.ErrInvalidSession
 		}
 
 		// Lock or create cart
@@ -124,11 +125,11 @@ func (s *Service) AddItem(
 			StoreID:   storeID,
 		})
 		if err != nil {
-			return fmt.Errorf("invalid variant: %w", err)
+			return errorx.ErrInvalidVariant
 		}
 
 		if variant.StockQuantity < qty {
-			return fmt.Errorf("insufficient stock for variant %d", variantID)
+			return errorx.ErrInsufficientStock
 		}
 
 		// Upsert item
@@ -146,5 +147,124 @@ func (s *Service) AddItem(
 			return err
 		}
 	return nil
+	})
+}
+
+func (s *Service) Checkout(
+	ctx context.Context,
+	storeID int64,
+	sessionID uuid.UUID,
+	paymentMethod string,
+) error {
+
+	return s.db.RunInTx(ctx, func(qtx *models.Queries) error {
+
+		// Validate session
+		session, err := qtx.GetSession(ctx, models.GetSessionParams{
+			SessionID: sessionID,
+			StoreID:   storeID,
+		})
+		if err != nil {
+			return err
+		}
+
+		// Lock cart
+		cart, err := qtx.GetCartForSession(ctx, models.GetCartForSessionParams{
+			StoreID:   storeID,
+			SessionID: sessionID,
+		})
+		if err == sql.ErrNoRows {
+			return errorx.ErrCartNotFound
+		}
+		if err != nil {
+			return err
+		}
+
+		// Lock cart items + variants
+		items, err := qtx.GetCartItemsForUpdate(ctx, cart.CartID)
+		if err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return errorx.ErrCartEmpty
+		}
+
+		// Validate stock
+		for _, item := range items {
+			if item.AvailableStock < item.CartQuantity {
+				return errorx.ErrOutOfStock
+			}
+		}
+
+		// Calculate total IN SQL
+		total, err := qtx.GetCartTotal(ctx, cart.CartID)
+		if err != nil {
+			return err
+		}
+
+		// Create order with status 'pending'
+		order, err := qtx.CreateOrder(ctx, models.CreateOrderParams{
+			StoreID:    storeID,
+			CustomerID: session.CustomerID,
+			SessionID:  sessionID,
+			TotalAmount: total,
+		})
+		if err != nil {
+			return err
+		}
+
+		// Create order items
+		for _, item := range items {
+
+			if err := qtx.CreateOrderItem(ctx, models.CreateOrderItemParams{
+				OrderID:   order.OrderID,
+				VariantID: item.VariantID,
+				Quantity:  item.CartQuantity,
+				UnitPrice: item.UnitPrice,
+				Subtotal:  item.Subtotal,
+			}); err != nil {
+				return err
+			}
+		}
+
+		// Create payment (simulated success)
+		// TODO: Integrate with real payment gateway
+		if err := qtx.CreatePayment(ctx, models.CreatePaymentParams{
+			OrderID: order.OrderID,
+			Method:  paymentMethod,
+			Amount:  total,
+			Status:  "completed",
+			TransactionRef: sql.NullString{
+				String: uuid.NewString(), // Simulated transaction reference for third-party payment gateway
+				Valid:  true,
+			},
+		}); err != nil {
+			return err
+		}
+
+		// Deduct stock
+		for _, item := range items {
+			if err := qtx.DecreaseVariantStock(ctx, models.DecreaseVariantStockParams{
+				VariantID:  item.VariantID,
+				CartQuantity: item.CartQuantity,
+			}); err != nil {
+				return err
+			}
+		}
+
+		// Mark order as completed
+		if err := qtx.UpdateOrderStatus(ctx, models.UpdateOrderStatusParams{
+			OrderID: order.OrderID,
+			Status:  sql.NullString{String: "completed", Valid: true},
+		}); err != nil {
+			return err
+		}
+
+		// Clear cart
+		if err := qtx.ClearCartItems(ctx, cart.CartID); err != nil {
+			return err
+		}
+
+		return nil
 	})
 }

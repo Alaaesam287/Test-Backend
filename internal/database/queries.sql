@@ -112,6 +112,19 @@ WHERE c.session_id = $1
   AND c.store_id = $2
 LIMIT 1;
 
+-- name: GetCartItemsForUpdate :many
+SELECT
+  ci.cart_item_id,
+  ci.variant_id,
+  ci.quantity AS cart_quantity,
+  ci.unit_price,
+  v.stock_quantity AS available_stock,
+  (v.unit_price * ci.quantity)::NUMERIC AS subtotal
+FROM cart_item ci
+JOIN product_variant v ON v.variant_id = ci.variant_id
+WHERE ci.cart_id = $1
+FOR UPDATE;
+
 -- name: GetCartTotal :one
 SELECT
   COALESCE(SUM(ci.unit_price * ci.quantity), 0)::NUMERIC AS total
@@ -134,6 +147,57 @@ JOIN product_variant v ON v.variant_id = ci.variant_id
 JOIN product p ON p.product_id = v.product_id
 WHERE ci.cart_id = $1
 ORDER BY ci.created_at;
+
+-- name: ClearCartItems :exec
+DELETE FROM cart_item
+WHERE cart_id = $1;
+
+
+-- name: CreateOrder :one
+INSERT INTO customer_order (
+  store_id,
+  customer_id,
+  session_id,
+  total_amount
+) VALUES (
+  $1, $2, $3, $4
+)
+RETURNING *;
+
+-- name: CreateOrderItem :exec
+INSERT INTO order_item (
+  order_id,
+  variant_id,
+  quantity,
+  unit_price,
+  subtotal
+) VALUES (
+  $1, $2, $3, $4, $5
+);
+
+-- name: UpdateOrderStatus :exec
+UPDATE customer_order
+SET status = $2,
+    updated_at = NOW()
+WHERE order_id = $1;
+
+-- name: CreatePayment :exec
+INSERT INTO payment (
+  order_id,
+  method,
+  amount,
+  status,
+  transaction_ref
+) VALUES (
+  $1, $2, $3, $4, $5
+);
+
+
+-- name: DecreaseVariantStock :exec
+UPDATE product_variant
+SET stock_quantity = stock_quantity - @cart_quantity,
+    updated_at = NOW()
+WHERE variant_id = $1;
 
 -- name: GetSession :one
 SELECT session_id, customer_id
