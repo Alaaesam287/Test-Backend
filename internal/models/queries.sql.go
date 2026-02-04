@@ -116,7 +116,7 @@ type CreateCustomerRow struct {
 	StoreID    int64
 	Name       string
 	Email      string
-	CreatedAt  sql.NullTime
+	CreatedAt  time.Time
 }
 
 func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (CreateCustomerRow, error) {
@@ -377,7 +377,7 @@ type CreateStoreOwnerRow struct {
 	StoreOwnerID int64
 	Name         string
 	Email        string
-	CreatedAt    sql.NullTime
+	CreatedAt    time.Time
 }
 
 func (q *Queries) CreateStoreOwner(ctx context.Context, arg CreateStoreOwnerParams) (CreateStoreOwnerRow, error) {
@@ -759,7 +759,7 @@ type GetCustomerByEmailRow struct {
 	Name         string
 	Email        string
 	PasswordHash string
-	CreatedAt    sql.NullTime
+	CreatedAt    time.Time
 }
 
 func (q *Queries) GetCustomerByEmail(ctx context.Context, arg GetCustomerByEmailParams) (GetCustomerByEmailRow, error) {
@@ -1142,7 +1142,7 @@ type GetStoreOwnerByEmailRow struct {
 	Name         string
 	Email        string
 	PasswordHash string
-	CreatedAt    sql.NullTime
+	CreatedAt    time.Time
 }
 
 func (q *Queries) GetStoreOwnerByEmail(ctx context.Context, email string) (GetStoreOwnerByEmailRow, error) {

@@ -61,8 +61,8 @@ ORDER BY DAY
 
 type GetConversionOverTimeParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 type GetConversionOverTimeRow struct {
@@ -107,8 +107,8 @@ WHERE vs.store_id = $1
 
 type GetConversionRateParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 func (q *Queries) GetConversionRate(ctx context.Context, arg GetConversionRateParams) (int32, error) {
@@ -194,8 +194,8 @@ FROM current_period,
 
 type GetCustomersGrowthPercentParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 // Customers page
@@ -329,8 +329,8 @@ LIMIT 5
 
 type GetLoyalCustomersParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 type GetLoyalCustomersRow struct {
@@ -373,8 +373,8 @@ WHERE co.store_id = $1
 
 type GetNewOrdersThisMonthParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 // Overview page
@@ -396,8 +396,8 @@ WHERE c.store_id = $1
 
 type GetNewRegisteredCustomersParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 // Overview page
@@ -455,8 +455,8 @@ FROM current_period,
 
 type GetOrdersGrowthPercentParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 func (q *Queries) GetOrdersGrowthPercent(ctx context.Context, arg GetOrdersGrowthPercentParams) (interface{}, error) {
@@ -597,8 +597,8 @@ LIMIT 5
 
 type GetProductsNeedingAttentionParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 type GetProductsNeedingAttentionRow struct {
@@ -726,8 +726,8 @@ FROM current_period,
 
 type GetRevenueGrowthPercentParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 func (q *Queries) GetRevenueGrowthPercent(ctx context.Context, arg GetRevenueGrowthPercentParams) (interface{}, error) {
@@ -751,8 +751,8 @@ ORDER BY order_date
 
 type GetRevenueOverTimeParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 type GetRevenueOverTimeRow struct {
@@ -818,8 +818,8 @@ LIMIT 5
 
 type GetTopSellingProductsParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 type GetTopSellingProductsRow struct {
@@ -893,8 +893,8 @@ WHERE co.store_id = $1
 
 type GetTotalRevenueCurrentMonthParams struct {
 	StoreID     int64
-	CreatedAt   sql.NullTime
-	CreatedAt_2 sql.NullTime
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
 }
 
 // In Overview and Analytics pages

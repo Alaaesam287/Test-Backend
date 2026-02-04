@@ -17,7 +17,7 @@ type Admin struct {
 	AdminID      int64
 	Email        string
 	PasswordHash string
-	CreatedAt    sql.NullTime
+	CreatedAt    time.Time
 }
 
 type AttributeDefinition struct {
@@ -30,7 +30,7 @@ type Cart struct {
 	StoreID    int64
 	SessionID  uuid.UUID
 	CustomerID sql.NullInt64
-	CreatedAt  sql.NullTime
+	CreatedAt  time.Time
 	UpdatedAt  sql.NullTime
 }
 
@@ -40,7 +40,7 @@ type CartEvent struct {
 	ProductID   int64
 	VariantID   sql.NullInt64
 	EventType   sql.NullString
-	CreatedAt   sql.NullTime
+	CreatedAt   time.Time
 }
 
 type CartItem struct {
@@ -49,7 +49,7 @@ type CartItem struct {
 	VariantID  int64
 	Quantity   int32
 	UnitPrice  string
-	CreatedAt  sql.NullTime
+	CreatedAt  time.Time
 }
 
 type CategoryAttribute struct {
@@ -72,7 +72,7 @@ type Customer struct {
 	PasswordHash string
 	Phone        sql.NullString
 	Address      types.NullableAddress
-	CreatedAt    sql.NullTime
+	CreatedAt    time.Time
 }
 
 type CustomerOrder struct {
@@ -82,7 +82,7 @@ type CustomerOrder struct {
 	SessionID   uuid.UUID
 	TotalAmount string
 	Status      sql.NullString
-	CreatedAt   sql.NullTime
+	CreatedAt   time.Time
 	UpdatedAt   sql.NullTime
 }
 
@@ -114,7 +114,7 @@ type Product struct {
 	Description      sql.NullString
 	Brand            sql.NullString
 	StockQuantity    int32
-	CreatedAt        sql.NullTime
+	CreatedAt        time.Time
 	UpdatedAt        sql.NullTime
 	InStock          bool
 	DeletedAt        sql.NullTime
@@ -130,7 +130,7 @@ type ProductVariant struct {
 	Price           string
 	StockQuantity   int32
 	PrimaryImageUrl sql.NullString
-	CreatedAt       sql.NullTime
+	CreatedAt       time.Time
 	UpdatedAt       sql.NullTime
 	DeletedAt       sql.NullTime
 }
@@ -139,7 +139,7 @@ type ProductVariantImage struct {
 	ImageID          int64
 	ProductVariantID int64
 	ImageUrl         string
-	CreatedAt        sql.NullTime
+	CreatedAt        time.Time
 }
 
 type ProductView struct {
@@ -158,7 +158,7 @@ type RefreshToken struct {
 	StoreID        sql.NullInt64
 	ExpiresAt      time.Time
 	Revoked        sql.NullBool
-	CreatedAt      sql.NullTime
+	CreatedAt      time.Time
 }
 
 type Shipment struct {
@@ -195,7 +195,7 @@ type StoreOwner struct {
 	PasswordHash string
 	Phone        sql.NullString
 	Address      types.NullableAddress
-	CreatedAt    sql.NullTime
+	CreatedAt    time.Time
 }
 
 type VariantAttributeValue struct {
