@@ -13,12 +13,14 @@ func SetupRouter(
 	cartHandler *handlers.CartHandler,
 	authHandler *handlers.AuthHandler,
 	storeHandler *handlers.StoreHandler,
+	rateLimiter *middleware.RateLimiter,
 	storeOwnerChecker *middleware.StoreOwnerChecker,
 	jwtSecret string,
 ) *gin.Engine {
 
 	r := gin.Default()
 	r.Use(middleware.ErrorMiddleware())
+	r.Use(rateLimiter.Middleware())
 
 	// Auth routes (public)
 	r.POST("/auth/register", authHandler.Register)

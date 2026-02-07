@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-type Config struct {
+type Secret struct {
 	AppEnv        string
 	AppPort       string
 	DBUser        string
@@ -20,9 +20,7 @@ type Config struct {
 	MinIOBucket   string
 }
 
-// Load validates that all required environment variables are set.
-// It returns an error if any of them are missing.
-func Load() (*Config, error) {
+func LoadSecrets() (*Secret, error) {
 	required := []string{
 		"APP_ENV",
 		"APP_PORT",
@@ -50,10 +48,10 @@ func Load() (*Config, error) {
 	}
 
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("missing required environment variables: %v", missing)
+		return nil, fmt.Errorf("missing env vars: %v", missing)
 	}
 
-	cfg := &Config{
+	return &Secret{
 		AppEnv:        values["APP_ENV"],
 		AppPort:       values["APP_PORT"],
 		DBUser:        values["DB_USER"],
@@ -65,7 +63,5 @@ func Load() (*Config, error) {
 		MinIOUser:     values["MINIO_USER"],
 		MinIOPass:     values["MINIO_PASS"],
 		MinIOBucket:   values["MINIO_BUCKET"],
-	}
-
-	return cfg, nil
+	}, nil
 }

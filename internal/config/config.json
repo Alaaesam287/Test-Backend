@@ -1,0 +1,7 @@
+{
+  "rate_limit": {
+    "requests_per_second": 10,
+    "burst": 20,
+    "cleanup_interval_minutes": 5
+  }
+}
