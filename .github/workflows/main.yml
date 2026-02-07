@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   security-scans:
     runs-on: ubuntu-latest
@@ -17,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -28,7 +32,7 @@ jobs:
       # GOSEC
       # ------------------------
 
-      - name: Run Gosec (Informational on not_secure)
+      - name: Run Gosec (Informational on push)
         if: github.event_name == 'push'
         continue-on-error: true
         uses: securego/gosec@master
@@ -40,7 +44,7 @@ jobs:
             -confidence medium
             ./...
 
-      - name: Run Gosec (Blocking on PR to main)
+      - name: Run Gosec (Blocking on PR)
         if: github.event_name == 'pull_request'
         uses: securego/gosec@master
         with:
@@ -51,8 +55,8 @@ jobs:
             ./...
 
       - name: Upload Gosec SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('gosec.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec.sarif
 
@@ -64,19 +68,19 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Run govulncheck (Informational on not_secure)
+      - name: Run govulncheck (Informational on push)
         if: github.event_name == 'push'
         continue-on-error: true
         run: |
-          govulncheck -format sarif ./... > govulncheck.sarif
+          govulncheck -format sarif ./... > govulncheck.sarif || true
 
-      - name: Run govulncheck (Blocking on PR to main)
+      - name: Run govulncheck (Blocking on PR)
         if: github.event_name == 'pull_request'
         run: |
           govulncheck -format sarif ./... > govulncheck.sarif
 
       - name: Upload govulncheck SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('govulncheck.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: govulncheck.sarif
