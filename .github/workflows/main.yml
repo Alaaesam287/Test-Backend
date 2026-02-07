@@ -61,7 +61,7 @@ jobs:
           sarif_file: gosec.sarif
 
       # ------------------------
-      # GOVULNCHECK
+      # GOVULNCHECK (SARIF)
       # ------------------------
 
       - name: Install govulncheck
@@ -72,12 +72,25 @@ jobs:
         if: github.event_name == 'push'
         continue-on-error: true
         run: |
-          govulncheck -format sarif ./... > govulncheck.sarif || true
+          govulncheck -format sarif ./... > govulncheck.raw.sarif || true
 
       - name: Run govulncheck (Blocking on PR)
         if: github.event_name == 'pull_request'
         run: |
-          govulncheck -format sarif ./... > govulncheck.sarif
+          govulncheck -format sarif ./... > govulncheck.raw.sarif
+
+      - name: Fix govulncheck SARIF
+        if: hashFiles('govulncheck.raw.sarif') != ''
+        run: |
+          jq '
+            .runs[].tool.driver.rules |=
+            map(
+              if .properties.tags
+              then .properties.tags |= unique
+              else .
+              end
+            )
+          ' govulncheck.raw.sarif > govulncheck.sarif
 
       - name: Upload govulncheck SARIF
         if: always() && hashFiles('govulncheck.sarif') != ''
