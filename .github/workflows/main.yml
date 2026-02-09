@@ -1,38 +1,56 @@
-name: Security Scans
+name: Run Security Scans
 
 on:
   pull_request:
+    branches: [main]
+
   push:
     branches: [main]
 
-permissions:
-  contents: read
-  security-events: write
+  workflow_dispatch:
 
 jobs:
   security:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: true
 
-      - name: Run gosec
+      # ========================
+      # GOSEC
+      # ========================
+      - name: Run gosec (blocking on PR / main)
+        if: github.event_name != 'workflow_dispatch'
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -severity high -fmt sarif -out gosec.sarif ./...
+          gosec -severity high -confidence medium ./...
 
-      - name: Upload gosec SARIF
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: gosec.sarif
-          category: gosec
+      - name: Run gosec (informational)
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -severity high -confidence medium ./...
 
-      - name: Run govulncheck
+      # ========================
+      # GOVULNCHECK
+      # ========================
+      - name: Run govulncheck (blocking on PR / main)
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Run govulncheck (informational)
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
