@@ -1,5 +1,4 @@
 name: Security Scans
-
 on:
   pull_request:
     branches: [main]
@@ -21,49 +20,53 @@ jobs:
       - name: Create sarif output directory
         run: mkdir -p sarif
       # ── gosec ───────────────────────────────────────────────────────────────
-      - name: Run gosec (high severity only)
+      - name: Run gosec
         continue-on-error: true
         id: gosec
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec \
-            -fmt=sarif \
-            -out=sarif/gosec.sarif \
-            -format=json -out=sarif/gosec.json \
-            ./...
-          # Count high-severity issues
-          ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo 0)
-          echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+          # Run gosec for JSON output
+          gosec -fmt=json -out=sarif/gosec.json ./... || true
+          # Run gosec for SARIF output
+          gosec -fmt=sarif -out=sarif/gosec.sarif ./... || true
+          # Count issues
+          ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo "0")
+          echo "issues=${ISSUES}" >> $GITHUB_OUTPUT
       # ── govulncheck ─────────────────────────────────────────────────────────
       - name: Run govulncheck
         continue-on-error: true
         id: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck \
-            -format=sarif \
-            ./... > sarif/govulncheck.sarif || true
-          govulncheck -format=json ./... > sarif/govulncheck.json || true
-          # Count found vulnerabilities
-          VULNS=$(jq '.Vulns | length' sarif/govulncheck.json 2>/dev/null || echo 0)
-          echo "vulns=$VULNS" >> $GITHUB_OUTPUT
+          # Run for SARIF
+          govulncheck -format sarif ./... 2>&1 | tee sarif/govulncheck.sarif || true
+          # Run for JSON
+          govulncheck -format json ./... 2>&1 | tee sarif/govulncheck.json || true
+          # Count vulnerabilities - govulncheck JSON has different structure
+          VULNS=$(jq -r 'select(.finding != null) | .finding' sarif/govulncheck.json 2>/dev/null | wc -l || echo "0")
+          echo "vulns=${VULNS}" >> $GITHUB_OUTPUT
       # ── Upload to Security tab ─────────────────────────────────────────────
       - name: Upload SARIF results
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: sarif/ # uploads all .sarif files in this folder
+          sarif_file: sarif/
+          category: security-scans
       # ── Job summary ─────────────────────────────────────────────────────────
       - name: Create job summary
         if: always()
         run: |
+          GOSEC_ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo "0")
+          GOVULNCHECK_VULNS=$(jq -r 'select(.finding != null) | .finding' sarif/govulncheck.json 2>/dev/null | wc -l || echo "0")
+          
           {
             echo "## 🔒 Security Scan Results"
             echo ""
-            echo "**gosec** (high severity): $(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo 0) issues"
-            echo "**govulncheck**: $(jq '.Vulns | length' sarif/govulncheck.json 2>/dev/null || echo 0) vulnerabilities"
+            echo "- **gosec**: ${GOSEC_ISSUES} issues"
+            echo "- **govulncheck**: ${GOVULNCHECK_VULNS} vulnerabilities"
             echo ""
             echo "Details → Security → Code scanning tab"
+            echo ""
             echo "Full JSON reports → Artifacts (security-reports)"
           } >> $GITHUB_STEP_SUMMARY
       # ── Artifacts (only JSON + SARIF for debugging/review) ─────────────────
@@ -72,7 +75,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
-          path: sarif/*.json sarif/*.sarif
+          path: |
+            sarif/*.json
+            sarif/*.sarif
           retention-days: 14
       # ── Block if issues found (skip on manual dispatch) ────────────────────
       - name: Fail if security issues found
