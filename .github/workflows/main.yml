@@ -26,7 +26,7 @@ jobs:
         run: mkdir -p sarif
 
       # ── gosec ───────────────────────────────────────────────────────────────
-      - name: Run gosec (high severity only)
+      - name: Run gosec (all severities)
         continue-on-error: true
         id: gosec
         run: |
@@ -35,14 +35,12 @@ jobs:
           gosec \
             -fmt=sarif \
             -out=sarif/gosec.sarif \
-            -severity=high \
             -format=json -out=sarif/gosec.json \
             ./...
 
-          # Count high-severity issues
+          # Count ALL issues (no severity filter)
           ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo 0)
           echo "issues=$ISSUES" >> $GITHUB_OUTPUT
-
       # ── govulncheck ─────────────────────────────────────────────────────────
       - name: Run govulncheck
         continue-on-error: true
@@ -71,15 +69,13 @@ jobs:
       - name: Create job summary
         if: always()
         run: |
-          {
-            echo "## 🔒 Security Scan Results"
-            echo ""
-            echo "**gosec** (high severity): $(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo 0) issues"
-            echo "**govulncheck**: $(jq '.Vulns | length' sarif/govulncheck.json 2>/dev/null || echo 0) vulnerabilities"
-            echo ""
-            echo "Details → Security → Code scanning tab"
-            echo "Full JSON reports → Artifacts (security-reports)"
-          } >> $GITHUB_STEP_SUMMARY
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**gosec** (high severity): $(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo 0) issues" >> $GITHUB_STEP_SUMMARY
+          echo "**govulncheck**: $(jq '.Vulns | length' sarif/govulncheck.json 2>/dev/null || echo 0) vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Details → Security → Code scanning tab" >> $GITHUB_STEP_SUMMARY
+          echo "Full JSON reports → Artifacts (security-reports)" >> $GITHUB_STEP_SUMMARY
 
       # ── Artifacts (only JSON + SARIF for debugging/review) ─────────────────
       - name: Upload reports as artifacts
