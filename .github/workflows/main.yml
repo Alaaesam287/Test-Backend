@@ -1,56 +1,91 @@
-name: Run Security Scans
-
+name: Security Scans
 on:
   pull_request:
     branches: [main]
-
   push:
     branches: [main]
-
   workflow_dispatch:
-
+permissions:
+  contents: read
+  security-events: write
 jobs:
   security:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: true
-
-      # ========================
-      # GOSEC
-      # ========================
-      - name: Run gosec (blocking on PR / main)
-        if: github.event_name != 'workflow_dispatch'
+      - name: Create sarif output directory
+        run: mkdir -p sarif
+      # ── gosec ───────────────────────────────────────────────────────────────
+      - name: Run gosec
+        continue-on-error: true
+        id: gosec
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -severity high -confidence medium ./...
-
-      - name: Run gosec (informational)
-        if: github.event_name == 'workflow_dispatch'
+          # Run gosec for JSON output
+          gosec -fmt=json -out=sarif/gosec.json ./... || true
+          # Run gosec for SARIF output
+          gosec -fmt=sarif -out=sarif/gosec.sarif ./... || true
+          # Count issues
+          ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo "0")
+          echo "issues=${ISSUES}" >> $GITHUB_OUTPUT
+      # ── govulncheck ─────────────────────────────────────────────────────────
+      - name: Run govulncheck
         continue-on-error: true
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -severity high -confidence medium ./...
-
-      # ========================
-      # GOVULNCHECK
-      # ========================
-      - name: Run govulncheck (blocking on PR / main)
-        if: github.event_name != 'workflow_dispatch'
+        id: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-      - name: Run govulncheck (informational)
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
+          # Run for SARIF
+          govulncheck -format sarif ./... 2>&1 | tee sarif/govulncheck.sarif || true
+          # Run for JSON
+          govulncheck -format json ./... 2>&1 | tee sarif/govulncheck.json || true
+          # Count vulnerabilities - govulncheck JSON has different structure
+          VULNS=$(jq -r 'select(.finding != null) | .finding' sarif/govulncheck.json 2>/dev/null | wc -l || echo "0")
+          echo "vulns=${VULNS}" >> $GITHUB_OUTPUT
+      # ── Upload to Security tab ─────────────────────────────────────────────
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif/
+          category: security-scans
+      # ── Job summary ─────────────────────────────────────────────────────────
+      - name: Create job summary
+        if: always()
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          GOSEC_ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo "0")
+          GOVULNCHECK_VULNS=$(jq -r 'select(.finding != null) | .finding' sarif/govulncheck.json 2>/dev/null | wc -l || echo "0")
+          
+          {
+            echo "## 🔒 Security Scan Results"
+            echo ""
+            echo "- **gosec**: ${GOSEC_ISSUES} issues"
+            echo "- **govulncheck**: ${GOVULNCHECK_VULNS} vulnerabilities"
+            echo ""
+            echo "Details → Security → Code scanning tab"
+            echo ""
+            echo "Full JSON reports → Artifacts (security-reports)"
+          } >> $GITHUB_STEP_SUMMARY
+      # ── Artifacts (only JSON + SARIF for debugging/review) ─────────────────
+      - name: Upload reports as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            sarif/*.json
+            sarif/*.sarif
+          retention-days: 14
+      # ── Block if issues found (skip on manual dispatch) ────────────────────
+      - name: Fail if security issues found
+        if: |
+          github.event_name != 'workflow_dispatch' &&
+          (steps.gosec.outputs.issues != '0' || steps.govulncheck.outputs.vulns != '0')
+        run: |
+          echo "::error::Security issues found in gosec or govulncheck."
+          echo "→ Review in Security → Code scanning"
+          echo "→ Download artifacts for JSON/SARIF details"
+          exit 1
