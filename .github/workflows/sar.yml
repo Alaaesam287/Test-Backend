@@ -2,7 +2,10 @@ name: Reset SARIF Alerts
 
 on:
   workflow_dispatch:
-
+permissions:
+  contents: read
+  security-events: write
+  
 jobs:
   reset:
     runs-on: ubuntu-latest
