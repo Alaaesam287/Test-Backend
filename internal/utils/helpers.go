@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/rand"
+	// #nosec G505
 	"crypto/sha1"
 	"crypto/sha256"
 	"database/sql"
@@ -149,6 +150,7 @@ func hasSymbol(s string) bool {
 // HIBP Check 
 
 func IsPasswordPwned(password string) (bool, error) {
+	// #nosec G401
 	hash := sha1.Sum([]byte(password))
 	hashHex := strings.ToUpper(hex.EncodeToString(hash[:]))
 
