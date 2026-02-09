@@ -52,12 +52,12 @@ jobs:
           fi
 
       - name: Upload gosec SARIF
-        if: always() && hashFiles('gosec.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        if: always()  # Remove the hashFiles check temporarily
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec.sarif
           category: gosec
-          checkout_path: ${{ github.workspace }}
 
       # ========================
       # GOVULNCHECK
@@ -71,8 +71,9 @@ jobs:
           echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
 
       - name: Upload govulncheck SARIF
-        if: always() && hashFiles('govulncheck.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        if: always()  # Remove the hashFiles check temporarily
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: govulncheck.sarif
           category: govulncheck
