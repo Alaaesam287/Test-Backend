@@ -34,8 +34,31 @@ jobs:
         id: gosec
         continue-on-error: true  
         run: |
-          gosec -fmt json -out gosec.json ./...
-          gosec -fmt sarif -out gosec.sarif ./...
+          echo "=== Checking gosec installation ==="
+          which gosec || echo "gosec not found in PATH"
+          
+          echo "=== Adding gosec to PATH ==="
+          export PATH=$PATH:$(go env GOPATH)/bin
+          which gosec
+          
+          echo "=== Checking for Go files ==="
+          find . -name "*.go" -type f | head -10
+          
+          echo "=== Running gosec JSON ==="
+          gosec -fmt json -out gosec.json ./... || echo "gosec JSON exit code: $?"
+          
+            echo "=== Running gosec SARIF ==="
+            gosec -fmt sarif -out gosec.sarif ./... || echo "gosec SARIF exit code: $?"
+            
+            echo "=== Checking generated files ==="
+            ls -lah gosec.* || echo "No gosec files found"
+            
+            if [ -f gosec.sarif ]; then
+              echo "✅ gosec.sarif created successfully"
+              head -20 gosec.sarif
+            else
+              echo "❌ gosec.sarif was NOT created"
+            fi
 
       - name: Check gosec HIGH severity
         id: gosec_check
