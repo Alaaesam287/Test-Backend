@@ -1,24 +1,30 @@
 name: Security Scans
+
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
   security-events: write
+
 jobs:
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: true
+      
       - name: Create sarif output directory
         run: mkdir -p sarif
+      
       # ── gosec ───────────────────────────────────────────────────────────────
       - name: Run gosec
         continue-on-error: true
@@ -32,6 +38,7 @@ jobs:
           # Count issues
           ISSUES=$(jq '.Issues | length' sarif/gosec.json 2>/dev/null || echo "0")
           echo "issues=${ISSUES}" >> $GITHUB_OUTPUT
+      
       # ── govulncheck ─────────────────────────────────────────────────────────
       - name: Run govulncheck
         continue-on-error: true
@@ -45,6 +52,7 @@ jobs:
           # Count vulnerabilities - govulncheck JSON has different structure
           VULNS=$(jq -r 'select(.finding != null) | .finding' sarif/govulncheck.json 2>/dev/null | wc -l || echo "0")
           echo "vulns=${VULNS}" >> $GITHUB_OUTPUT
+      
       # ── Upload to Security tab ─────────────────────────────────────────────
       - name: Upload SARIF results
         if: always()
@@ -52,6 +60,7 @@ jobs:
         with:
           sarif_file: sarif/
           category: security-scans
+      
       # ── Job summary ─────────────────────────────────────────────────────────
       - name: Create job summary
         if: always()
@@ -69,6 +78,7 @@ jobs:
             echo ""
             echo "Full JSON reports → Artifacts (security-reports)"
           } >> $GITHUB_STEP_SUMMARY
+      
       # ── Artifacts (only JSON + SARIF for debugging/review) ─────────────────
       - name: Upload reports as artifacts
         if: always()
@@ -79,6 +89,7 @@ jobs:
             sarif/*.json
             sarif/*.sarif
           retention-days: 14
+      
       # ── Block if issues found (skip on manual dispatch) ────────────────────
       - name: Fail if security issues found
         if: |
